@@ -29,5 +29,7 @@ env/
 
 # Project-specific
 tests/fixtures/generated/
+examples/django_reference/uploaded_files/
+examples/django_reference/django_internal.sqlite3
 *.log
 .env
