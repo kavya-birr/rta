@@ -38,7 +38,8 @@ _FAKE_AMC_CODES = ["ALPHA01", "BETA02", "GAMMA03", "DELTA04", "EPSILON5"]
 
 # ---- CAMS generator ----
 def generate_cams(out_path: Path, num_rows: int = 20, seed: int = 42) -> None:
-    rng = random.Random(seed)
+    # Deterministic non-crypto PRNG — seeded for reproducible synthetic test data.
+    rng = random.Random(seed)  # nosec B311
     rows = []
     base_date = date(2025, 1, 1)
     for i in range(num_rows):
@@ -86,7 +87,8 @@ def generate_kfintech(
     folio_base: int = 2000000,
     base_date: date = date(2025, 2, 1),
 ) -> None:
-    rng = random.Random(seed)
+    # Deterministic non-crypto PRNG — seeded for reproducible synthetic test data.
+    rng = random.Random(seed)  # nosec B311
     rows = []
     for i in range(num_rows):
         pan = rng.choice(_FAKE_PANS)

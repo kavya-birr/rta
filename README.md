@@ -351,7 +351,7 @@ Visit **http://127.0.0.1:8765**:
 - [ ] Docs site (quickstart, architecture, adapters, embedding, operators)
 - [ ] PyPI release
 
-See `docs/superpowers/plans/2026-04-14-openreversefeed.md` for the full 8-chunk implementation plan.
+Track remaining work on the issue tracker.
 
 ---
 
