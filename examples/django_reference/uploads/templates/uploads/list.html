@@ -114,7 +114,12 @@
       {% for f in rows %}
         <tr>
           <td class="mono muted">#{{ f.id }}</td>
-          <td class="mono fg">{{ f.filename }}</td>
+          <td class="mono fg">
+            {{ f.filename }}
+            {% if f.status == "failed" and f.error %}
+              <div class="error-preview">⚠ {{ f.error|truncatechars:200 }}</div>
+            {% endif %}
+          </td>
           <td>{% if f.registrar %}<span class="provider provider-{{ f.registrar }}">{{ f.registrar|upper }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
           <td><span class="badge badge-{{ f.status }}">{{ f.status }}</span></td>
           <td class="muted">{{ f.uploaded_by|default:"—" }}</td>

@@ -10,7 +10,7 @@
     <p><span class="mono muted">#{{ sf.id }}</span> · uploaded by {{ sf.uploaded_by|default:"—" }} on {{ sf.created_at|date:"M j, Y H:i" }}</p>
   </div>
   <div class="actions">
-    {% if sf.status == "pending" %}
+    {% if sf.status == "pending" or sf.status == "failed" %}
     <form method="post" action="{% url 'uploads:process' sf.id %}">
       {% csrf_token %}
       <button class="btn btn-primary" type="submit">
@@ -18,10 +18,42 @@
         Process now
       </button>
     </form>
+    {% elif sf.status == "completed" %}
+    <form method="post" action="{% url 'uploads:process' sf.id %}">
+      {% csrf_token %}
+      <button class="btn btn-ghost" type="submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 10 9 10"/></svg>
+        Reprocess
+      </button>
+    </form>
     {% endif %}
-    <a class="btn btn-ghost" href="{% url 'uploads:list' %}">← Back to list</a>
+    <a class="btn btn-ghost" href="{% url 'uploads:download' sf.id %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download source
+    </a>
+    {% if txns %}
+    <a class="btn btn-ghost" href="{% url 'uploads:export_txns' sf.id %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Export CSV
+    </a>
+    {% endif %}
+    <a class="btn btn-ghost" href="{% url 'uploads:list' %}">← Back</a>
   </div>
 </div>
+
+{% if sf.status == "failed" and sf.error %}
+<div class="card padded" style="border-color: rgba(220, 38, 38, 0.3); background: var(--rose-bg); margin-bottom: 1rem;">
+  <div style="display: flex; align-items: start; gap: 0.9rem;">
+    <div style="flex-shrink: 0; margin-top: 2px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <div style="flex: 1;">
+      <div style="font-weight: 700; color: #991b1b; margin-bottom: 0.3rem; font-size: 0.9rem;">Processing failed</div>
+      <div class="error-preview" style="margin: 0;">{{ sf.error }}</div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <h2 class="section">File Details</h2>
 <div class="card">
@@ -32,7 +64,6 @@
     <div class="kv"><span class="k">Checksum</span><span class="v mono">{{ sf.checksum|slice:":16"|default:"—" }}…</span></div>
     <div class="kv"><span class="k">Storage</span><span class="v mono">{{ sf.storage_uri|truncatechars:60 }}</span></div>
     <div class="kv"><span class="k">Created</span><span class="v">{{ sf.created_at|date:"M j, Y · H:i:s" }}</span></div>
-    {% if sf.error %}<div class="kv" style="grid-column: 1 / -1;"><span class="k">Error</span><span class="v mono" style="color: var(--rose);">{{ sf.error }}</span></div>{% endif %}
   </div>
 </div>
 

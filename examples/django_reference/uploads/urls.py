@@ -9,4 +9,6 @@ urlpatterns = [
     path("new/", views.upload_view, name="new"),
     path("<int:source_file_id>/", views.file_detail, name="detail"),
     path("<int:source_file_id>/process/", views.process_view, name="process"),
+    path("<int:source_file_id>/download/", views.download_view, name="download"),
+    path("<int:source_file_id>/transactions.csv", views.export_transactions_csv, name="export_txns"),
 ]

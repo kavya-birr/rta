@@ -1,10 +1,12 @@
-"""Feed Files (uploads) views — list, new, detail, process."""
+"""Feed Files (uploads) views — list, new, detail, process, download, export."""
 from __future__ import annotations
 
+import csv
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from django.contrib import messages
-from django.http import Http404
+from django.http import FileResponse, Http404, StreamingHttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from sqlalchemy import and_, func, or_, select
@@ -146,6 +148,7 @@ def file_list(request):
                 "row_count": f.row_count,
                 "txn_count": counts.get(f.id, 0),
                 "uploaded_by": f.uploaded_by,
+                "error": f.error,
             }
         )
 
@@ -298,3 +301,121 @@ def process_view(request, source_file_id: int):
     # Redirect back to wherever they came from if possible
     next_url = request.POST.get("next") or reverse("uploads:detail", args=[source_file_id])
     return redirect(next_url)
+
+
+def download_view(request, source_file_id: int):
+    """Stream the original uploaded file back to the operator for debugging."""
+    Session = get_session_factory()
+    with Session() as session:
+        sf = session.get(SourceFile, source_file_id)
+        if sf is None:
+            raise Http404
+        storage_uri = sf.storage_uri
+        original_name = sf.filename
+
+    if not storage_uri or not storage_uri.startswith("file://"):
+        messages.error(request, "Download only supported for local-storage files.")
+        return redirect(reverse("uploads:detail", args=[source_file_id]))
+
+    path = Path(storage_uri.removeprefix("file://"))
+    if not path.exists():
+        messages.error(request, f"File no longer exists on disk: {path}")
+        return redirect(reverse("uploads:detail", args=[source_file_id]))
+
+    response = FileResponse(path.open("rb"), as_attachment=True, filename=original_name)
+    return response
+
+
+class _Echo:
+    """CSV writer sink that returns each row so StreamingHttpResponse can flush it."""
+
+    def write(self, value):
+        return value
+
+
+def export_transactions_csv(request, source_file_id: int):
+    """Stream a CSV of all transactions for this source file."""
+    Session = get_session_factory()
+    with Session() as session:
+        sf = session.get(SourceFile, source_file_id)
+        if sf is None:
+            raise Http404
+        filename = sf.filename
+        rows = (
+            session.execute(
+                select(
+                    Transaction.id,
+                    Transaction.transaction_date,
+                    Transaction.registrar,
+                    Transaction.composite_key,
+                    Transaction.registrar_transaction_id,
+                    Account.pan.label("pan"),
+                    Account.name.label("account_name"),
+                    Scheme.scheme_code.label("scheme_code"),
+                    Folio.folio_number.label("folio_number"),
+                    Transaction.action,
+                    Transaction.action_tag,
+                    Transaction.status,
+                    Transaction.units,
+                    Transaction.nav,
+                    Transaction.amount,
+                    Transaction.broker_code,
+                )
+                .join(Account, Account.id == Transaction.account_id)
+                .join(Scheme, Scheme.id == Transaction.scheme_id)
+                .join(Folio, Folio.id == Transaction.folio_id)
+                .where(Transaction.source_file_id == source_file_id)
+                .order_by(Transaction.transaction_date, Transaction.id)
+            )
+            .all()
+        )
+
+    header = [
+        "id",
+        "transaction_date",
+        "registrar",
+        "composite_key",
+        "registrar_transaction_id",
+        "pan",
+        "account_name",
+        "scheme_code",
+        "folio_number",
+        "action",
+        "action_tag",
+        "status",
+        "units",
+        "nav",
+        "amount",
+        "broker_code",
+    ]
+
+    writer = csv.writer(_Echo())
+
+    def _stream():
+        yield writer.writerow(header)
+        for r in rows:
+            yield writer.writerow(
+                [
+                    r.id,
+                    r.transaction_date.isoformat() if r.transaction_date else "",
+                    r.registrar,
+                    r.composite_key,
+                    r.registrar_transaction_id,
+                    r.pan,
+                    r.account_name,
+                    r.scheme_code,
+                    r.folio_number,
+                    r.action,
+                    r.action_tag,
+                    r.status,
+                    str(r.units) if r.units is not None else "",
+                    str(r.nav) if r.nav is not None else "",
+                    str(r.amount) if r.amount is not None else "",
+                    r.broker_code or "",
+                ]
+            )
+
+    stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+    response = StreamingHttpResponse(_stream(), content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{stem}_transactions.csv"'
+    return response

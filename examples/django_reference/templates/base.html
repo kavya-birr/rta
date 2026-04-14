@@ -169,6 +169,38 @@
       flex-shrink: 0;
     }
     nav.sidebar-nav a.active svg { opacity: 1; color: var(--blue); }
+    .nav-badge {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 18px;
+      padding: 0 0.4rem;
+      font-size: 0.68rem;
+      font-weight: 700;
+      border-radius: 999px;
+      font-variant-numeric: tabular-nums;
+    }
+    .nav-badge + .nav-badge { margin-left: 0.2rem; }
+    .nav-badge.amber { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(217, 119, 6, 0.3); }
+    .nav-badge.rose  { background: var(--rose-bg);  color: var(--rose);  border: 1px solid rgba(220, 38, 38, 0.3); }
+    .nav-badge.emerald { background: var(--emerald-bg); color: var(--emerald); border: 1px solid rgba(5, 150, 105, 0.3); }
+
+    /* ============ Error preview inline ============ */
+    .error-preview {
+      background: var(--rose-bg);
+      border: 1px solid rgba(220, 38, 38, 0.25);
+      color: #991b1b;
+      padding: 0.6rem 0.8rem;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.76rem;
+      line-height: 1.5;
+      margin-top: 0.5rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
 
     .sidebar-footer {
       margin-top: auto;
@@ -1001,10 +1033,13 @@
         <a href="{% url 'uploads:list' %}" class="{% if active == 'files' %}active{% endif %}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           Feed Files
+          {% if nav_counts.files_pending %}<span class="nav-badge amber">{{ nav_counts.files_pending }}</span>{% endif %}
+          {% if nav_counts.files_failed %}<span class="nav-badge rose">{{ nav_counts.files_failed }}</span>{% endif %}
         </a>
         <a href="{% url 'corrections:list' %}" class="{% if active == 'exceptions' %}active{% endif %}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           Exceptions
+          {% if nav_counts.exceptions_pending %}<span class="nav-badge amber">{{ nav_counts.exceptions_pending }}</span>{% endif %}
         </a>
       </nav>
 
