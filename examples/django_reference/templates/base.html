@@ -1080,5 +1080,116 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+
+  <script>
+  // ─────────── Keyboard shortcuts ───────────
+  // / — focus search
+  // g u — go to Feed Files
+  // g o — go to Overview
+  // g e — go to Exceptions
+  // n — new upload
+  // r — refresh current page
+  // ?  — show shortcut help
+  (function() {
+    const routes = {
+      'u': '{% url "uploads:list" %}',
+      'o': '{% url "dashboard:home" %}',
+      'e': '{% url "corrections:list" %}',
+    };
+    let gPending = false;
+    let gTimer = null;
+
+    function isEditable(el) {
+      if (!el) return false;
+      const tag = (el.tagName || '').toLowerCase();
+      return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isEditable(e.target)) return;
+
+      // "/" focuses the search box if one exists on the page
+      if (e.key === '/') {
+        const search = document.querySelector('.search-box input[type="text"]');
+        if (search) {
+          e.preventDefault();
+          search.focus();
+          search.select();
+        }
+        return;
+      }
+
+      // "?" shows the help overlay
+      if (e.key === '?') {
+        e.preventDefault();
+        toggleHelp();
+        return;
+      }
+
+      // "n" = new upload
+      if (e.key === 'n') {
+        e.preventDefault();
+        window.location.href = '{% url "uploads:new" %}';
+        return;
+      }
+
+      // "r" = refresh
+      if (e.key === 'r') {
+        e.preventDefault();
+        window.location.reload();
+        return;
+      }
+
+      // two-key "g <x>" navigation
+      if (e.key === 'g') {
+        gPending = true;
+        clearTimeout(gTimer);
+        gTimer = setTimeout(() => { gPending = false; }, 1000);
+        return;
+      }
+      if (gPending && routes[e.key]) {
+        e.preventDefault();
+        gPending = false;
+        window.location.href = routes[e.key];
+      }
+    });
+
+    function toggleHelp() {
+      let overlay = document.getElementById('kbd-help');
+      if (overlay) { overlay.remove(); return; }
+      overlay = document.createElement('div');
+      overlay.id = 'kbd-help';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:100;font-family:inherit;';
+      overlay.innerHTML = `
+        <div style="background:#fff;border:1px solid rgba(15,23,42,0.12);border-radius:14px;padding:1.4rem 1.6rem;max-width:420px;box-shadow:0 24px 48px -12px rgba(15,23,42,0.35);">
+          <div style="font-size:0.95rem;font-weight:700;margin-bottom:0.9rem;color:#0f172a;">Keyboard shortcuts</div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:0.55rem 1.2rem;font-size:0.82rem;color:#334155;">
+            <div><kbd class="k">/</kbd></div><div>Focus search</div>
+            <div><kbd class="k">g</kbd> <kbd class="k">o</kbd></div><div>Go to Overview</div>
+            <div><kbd class="k">g</kbd> <kbd class="k">u</kbd></div><div>Go to Feed Files</div>
+            <div><kbd class="k">g</kbd> <kbd class="k">e</kbd></div><div>Go to Exceptions</div>
+            <div><kbd class="k">n</kbd></div><div>New upload</div>
+            <div><kbd class="k">r</kbd></div><div>Refresh page</div>
+            <div><kbd class="k">?</kbd></div><div>Toggle this help</div>
+          </div>
+          <div style="margin-top:1rem;color:#64748b;font-size:0.75rem;">Press <kbd class="k">esc</kbd> or <kbd class="k">?</kbd> to close.</div>
+        </div>
+      `;
+      overlay.querySelectorAll('kbd.k').forEach(k => {
+        k.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;padding:0 0.4rem;min-width:22px;height:22px;background:#f1f5f9;border:1px solid rgba(15,23,42,0.14);border-radius:5px;font-family:inherit;font-size:0.72rem;color:#334155;box-shadow:0 1px 0 rgba(0,0,0,0.04);font-weight:600;';
+      });
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+      document.body.appendChild(overlay);
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        const overlay = document.getElementById('kbd-help');
+        if (overlay) overlay.remove();
+      }
+    });
+  })();
+  </script>
 </body>
 </html>
