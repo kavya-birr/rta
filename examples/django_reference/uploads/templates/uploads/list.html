@@ -9,6 +9,10 @@
     <p>Registrar feed uploads, their processing status, and resulting transactions.</p>
   </div>
   <div class="actions">
+    <a class="btn btn-ghost" href="{% url 'uploads:list' %}?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ date_range }}&sort={{ sort }}&size={{ page_size }}&page={{ page }}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15A9 9 0 0 1 5.64 18.36L1 14"/></svg>
+      Refresh
+    </a>
     <a class="btn btn-primary" href="{% url 'uploads:new' %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Ingest file
@@ -16,31 +20,70 @@
   </div>
 </div>
 
-<form method="get" class="filter-bar">
-  <div class="search-box">
+{# Status summary bar — quick triage #}
+<div class="status-summary">
+  <a class="summary-card {% if status == 'all' %}active{% endif %}" href="?q={{ q }}&provider={{ provider }}&status=all&date={{ date_range }}">
+    <span class="sc-num">{{ total_files }}</span>
+    <span class="sc-label">All files</span>
+  </a>
+  <a class="summary-card amber {% if status == 'pending' %}active{% endif %}" href="?q={{ q }}&provider={{ provider }}&status=pending&date={{ date_range }}">
+    <span class="sc-num">{{ status_summary.pending|default:0 }}</span>
+    <span class="sc-label">Pending</span>
+  </a>
+  <a class="summary-card cyan {% if status == 'processing' %}active{% endif %}" href="?q={{ q }}&provider={{ provider }}&status=processing&date={{ date_range }}">
+    <span class="sc-num">{{ status_summary.processing|default:0 }}</span>
+    <span class="sc-label">Processing</span>
+  </a>
+  <a class="summary-card emerald {% if status == 'completed' %}active{% endif %}" href="?q={{ q }}&provider={{ provider }}&status=completed&date={{ date_range }}">
+    <span class="sc-num">{{ status_summary.completed|default:0 }}</span>
+    <span class="sc-label">Completed</span>
+  </a>
+  <a class="summary-card rose {% if status == 'failed' %}active{% endif %}" href="?q={{ q }}&provider={{ provider }}&status=failed&date={{ date_range }}">
+    <span class="sc-num">{{ status_summary.failed|default:0 }}</span>
+    <span class="sc-label">Failed</span>
+  </a>
+</div>
+
+<div class="filter-bar">
+  {# Search form — preserves all other filters via hidden inputs #}
+  <form method="get" class="search-box">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     <input type="text" name="q" value="{{ q }}" placeholder="Search filename or uploader…" autocomplete="off">
-  </div>
+    <input type="hidden" name="provider" value="{{ provider }}">
+    <input type="hidden" name="status" value="{{ status }}">
+    <input type="hidden" name="date" value="{{ date_range }}">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="size" value="{{ page_size }}">
+  </form>
 
   <div class="chip-group" role="group" aria-label="Provider">
     {% for p in provider_choices %}
-      <button type="submit" name="provider" value="{{ p }}" class="chip {% if p == provider %}active{% endif %}">{% if p == "all" %}All providers{% else %}{{ p|upper }}{% endif %}</button>
+      <a class="chip {% if p == provider %}active{% endif %}"
+         href="?q={{ q }}&provider={{ p }}&status={{ status }}&date={{ date_range }}&sort={{ sort }}&size={{ page_size }}">{% if p == 'all' %}All providers{% else %}{{ p|upper }}{% endif %}</a>
     {% endfor %}
   </div>
 
-  <div class="chip-group" role="group" aria-label="Status">
-    {% for s in status_choices %}
-      <button type="submit" name="status" value="{{ s }}" class="chip {% if s == status %}active{% endif %}">{{ s }}</button>
+  <div class="chip-group" role="group" aria-label="Date range">
+    {% for d in date_choices %}
+      <a class="chip {% if d == date_range %}active{% endif %}"
+         href="?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ d }}&sort={{ sort }}&size={{ page_size }}">{% if d == 'all' %}All time{% elif d == 'today' %}Today{% elif d == '7d' %}Last 7d{% elif d == '30d' %}Last 30d{% endif %}</a>
     {% endfor %}
   </div>
-
-  {# Preserve filter state when switching dimension #}
-  <input type="hidden" name="status" value="{{ status }}">
-  <input type="hidden" name="provider" value="{{ provider }}">
 
   <div class="spacer"></div>
-  <div class="total">Showing <strong>{{ shown_count }}</strong> of <strong>{{ total_files }}</strong></div>
-</form>
+  <div class="total">Showing <strong>{{ shown_count }}</strong> of <strong>{{ filtered_total }}</strong></div>
+</div>
+
+{% if q or provider != "all" or status != "all" or date_range != "all" %}
+<div style="margin: -0.25rem 0 1rem 0.15rem; display: flex; gap: 0.45rem; align-items: center; font-size: 0.78rem; color: var(--muted);">
+  <span>Active filters:</span>
+  {% if q %}<span class="tag">q = "{{ q }}"</span>{% endif %}
+  {% if provider != "all" %}<span class="tag tag-switch_in">provider = {{ provider }}</span>{% endif %}
+  {% if status != "all" %}<span class="tag tag-purchase">status = {{ status }}</span>{% endif %}
+  {% if date_range != "all" %}<span class="tag tag-switch_out">date = {{ date_range }}</span>{% endif %}
+  <a href="{% url 'uploads:list' %}" style="color: var(--blue); font-weight: 600; margin-left: 0.3rem;">Clear all</a>
+</div>
+{% endif %}
 
 <div class="card">
   <table>
@@ -49,10 +92,20 @@
         <th style="width: 60px">#</th>
         <th>Filename</th>
         <th>Provider</th>
-        <th>Status</th>
+        <th>
+          <a href="?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ date_range }}&sort=status&size={{ page_size }}" style="color: inherit;">Status {% if sort == 'status' %}▾{% endif %}</a>
+        </th>
         <th>Uploaded by</th>
-        <th>Uploaded</th>
-        <th class="num">Rows</th>
+        <th>
+          <a href="?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ date_range }}&sort={% if sort == 'date_desc' %}date_asc{% else %}date_desc{% endif %}&size={{ page_size }}" style="color: inherit;">
+            Uploaded {% if sort == 'date_desc' %}↓{% elif sort == 'date_asc' %}↑{% endif %}
+          </a>
+        </th>
+        <th class="num">
+          <a href="?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ date_range }}&sort={% if sort == 'rows_desc' %}rows_asc{% else %}rows_desc{% endif %}&size={{ page_size }}" style="color: inherit;">
+            Rows {% if sort == 'rows_desc' %}↓{% elif sort == 'rows_asc' %}↑{% endif %}
+          </a>
+        </th>
         <th class="num">Transactions</th>
         <th></th>
       </tr>
@@ -68,20 +121,74 @@
           <td class="dim">{{ f.created_at|date:"M j, H:i" }}</td>
           <td class="num mono">{{ f.row_count|default:"—" }}</td>
           <td class="num"><strong class="fg">{{ f.txn_count }}</strong></td>
-          <td class="right"><a class="btn btn-ghost btn-sm" href="{% url 'uploads:detail' f.id %}">Open →</a></td>
+          <td class="row-actions">
+            {% if f.status == "pending" or f.status == "failed" %}
+              <form method="post" action="{% url 'uploads:process' f.id %}" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'uploads:list' %}?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ date_range }}&sort={{ sort }}&size={{ page_size }}&page={{ page }}">
+                <button type="submit" class="btn btn-ghost btn-sm" title="Process">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                </button>
+              </form>
+            {% elif f.status == "completed" %}
+              <form method="post" action="{% url 'uploads:process' f.id %}" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'uploads:list' %}?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ date_range }}&sort={{ sort }}&size={{ page_size }}&page={{ page }}">
+                <button type="submit" class="btn btn-ghost btn-sm" title="Reprocess">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 10 9 10"/></svg>
+                </button>
+              </form>
+            {% endif %}
+            <a class="btn btn-ghost btn-sm" href="{% url 'uploads:detail' f.id %}">Open →</a>
+          </td>
         </tr>
       {% empty %}
         <tr><td colspan="9">
           <div class="empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <h3>No files match</h3>
-            <p>Try removing filters or ingest a new file.</p>
-            <a class="btn btn-primary" href="{% url 'uploads:new' %}">Ingest file</a>
+            <p>Try widening the date range or clearing filters.</p>
+            <a class="btn btn-primary btn-sm" href="{% url 'uploads:list' %}">Clear filters</a>
           </div>
         </td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+{# Pagination footer — only show when there's more than one page OR more rows than the smallest page size #}
+{% if filtered_total > 10 %}
+<div class="pagination-bar">
+  <div class="page-size-picker">
+    <span class="muted">Rows per page:</span>
+    {% for sz in page_size_choices %}
+      <a class="chip-mini {% if sz == page_size %}active{% endif %}"
+         href="?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ date_range }}&sort={{ sort }}&size={{ sz }}">{{ sz }}</a>
+    {% endfor %}
+  </div>
+
+  <div class="spacer"></div>
+
+  <div class="page-nav">
+    <span class="muted">Page <strong class="fg">{{ page }}</strong> of <strong class="fg">{{ total_pages }}</strong> · {{ filtered_total }} rows</span>
+    {% if total_pages > 1 %}
+    <div class="page-btns">
+      <a class="btn btn-ghost btn-sm {% if not has_prev %}disabled{% endif %}"
+         href="?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ date_range }}&sort={{ sort }}&size={{ page_size }}&page=1">«</a>
+      <a class="btn btn-ghost btn-sm {% if not has_prev %}disabled{% endif %}"
+         href="?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ date_range }}&sort={{ sort }}&size={{ page_size }}&page={{ prev_page }}">‹ Prev</a>
+      {% for p in page_window %}
+        <a class="btn {% if p == page %}btn-primary{% else %}btn-ghost{% endif %} btn-sm"
+           href="?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ date_range }}&sort={{ sort }}&size={{ page_size }}&page={{ p }}">{{ p }}</a>
+      {% endfor %}
+      <a class="btn btn-ghost btn-sm {% if not has_next %}disabled{% endif %}"
+         href="?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ date_range }}&sort={{ sort }}&size={{ page_size }}&page={{ next_page }}">Next ›</a>
+      <a class="btn btn-ghost btn-sm {% if not has_next %}disabled{% endif %}"
+         href="?q={{ q }}&provider={{ provider }}&status={{ status }}&date={{ date_range }}&sort={{ sort }}&size={{ page_size }}&page={{ total_pages }}">»</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 
 {% endblock %}
