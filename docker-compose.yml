@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ofr-postgres
+    environment:
+      POSTGRES_USER: ofr
+      POSTGRES_PASSWORD: ofr
+      POSTGRES_DB: ofr
+    ports:
+      - "5438:5432"
+    volumes:
+      - ofr_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ofr -d ofr"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+volumes:
+  ofr_pg_data:
+    name: ofr_pg_data

@@ -27,6 +27,7 @@ dependencies = [
     "pyarrow >=15,<20",
     "openpyxl >=3.1,<4",
     "xlrd >=2.0,<3",
+    "dbfread >=2.0,<3",
     "SQLAlchemy >=2.0,<2.1",
     "alembic >=1.13,<2",
     "psycopg[binary] >=3.1,<4",
@@ -52,6 +53,7 @@ dev = [
     "ruff >=0.5,<1",
     "mypy >=1.10,<2",
     "moto[sqs,s3] >=5,<6",
+    "dbf >=0.99,<1",
 ]
 
 [project.scripts]

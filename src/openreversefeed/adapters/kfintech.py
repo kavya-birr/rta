@@ -145,7 +145,16 @@ class KFintechFormat1Adapter(_KFintechBase):
     field_map = _FORMAT1_FIELD_MAP
 
     def parse(self, file_path: str | Path) -> pd.DataFrame:
-        return pd.read_excel(Path(file_path), dtype=str)
+        path = Path(file_path)
+        suffix = path.suffix.lower()
+        if suffix == ".csv":
+            return pd.read_csv(path, dtype=str)
+        if suffix == ".dbf":
+            from dbfread import DBF
+
+            records = [dict(r) for r in DBF(str(path), load=True, char_decode_errors="ignore")]
+            return pd.DataFrame(records, dtype=str)
+        return pd.read_excel(path, dtype=str)
 
     def normalize(self, raw: pd.DataFrame) -> pd.DataFrame:
         return self._normalize_with_map(raw, _FORMAT1_FIELD_MAP)
@@ -159,7 +168,16 @@ class KFintechFormat2Adapter(_KFintechBase):
     field_map = _FORMAT2_FIELD_MAP
 
     def parse(self, file_path: str | Path) -> pd.DataFrame:
-        return pd.read_excel(Path(file_path), dtype=str)
+        path = Path(file_path)
+        suffix = path.suffix.lower()
+        if suffix == ".csv":
+            return pd.read_csv(path, dtype=str)
+        if suffix == ".dbf":
+            from dbfread import DBF
+
+            records = [dict(r) for r in DBF(str(path), load=True, char_decode_errors="ignore")]
+            return pd.DataFrame(records, dtype=str)
+        return pd.read_excel(path, dtype=str)
 
     def normalize(self, raw: pd.DataFrame) -> pd.DataFrame:
         return self._normalize_with_map(raw, _FORMAT2_FIELD_MAP)
