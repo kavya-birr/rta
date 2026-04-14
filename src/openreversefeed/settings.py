@@ -53,17 +53,15 @@ class Settings(BaseSettings):
     otel_enabled: bool = False
 
     @model_validator(mode="after")
-    def _check_publisher_deps(self) -> "Settings":
-        if self.publisher == "webhook":
-            if not self.webhook_url:
-                raise ValueError("OFR_WEBHOOK_URL is required when OFR_PUBLISHER=webhook")
-            if not self.webhook_secret:
-                raise ValueError("OFR_WEBHOOK_SECRET is required when OFR_PUBLISHER=webhook")
+    def _check_publisher_deps(self) -> Settings:
+        if self.publisher == "webhook" and not self.webhook_url:
+            raise ValueError("OFR_WEBHOOK_URL is required when OFR_PUBLISHER=webhook")
+        if self.publisher == "webhook" and not self.webhook_secret:
+            raise ValueError("OFR_WEBHOOK_SECRET is required when OFR_PUBLISHER=webhook")
         if self.publisher == "sqs" and not self.sqs_queue_url:
             raise ValueError("OFR_SQS_QUEUE_URL is required when OFR_PUBLISHER=sqs")
-        if self.publisher == "kafka":
-            if not self.kafka_brokers or not self.kafka_topic:
-                raise ValueError(
-                    "OFR_KAFKA_BROKERS and OFR_KAFKA_TOPIC are required when OFR_PUBLISHER=kafka"
-                )
+        if self.publisher == "kafka" and (not self.kafka_brokers or not self.kafka_topic):
+            raise ValueError(
+                "OFR_KAFKA_BROKERS and OFR_KAFKA_TOPIC are required when OFR_PUBLISHER=kafka"
+            )
         return self

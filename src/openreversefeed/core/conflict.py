@@ -21,9 +21,8 @@ def resolve_kfintech_conflicts(df: pd.DataFrame) -> pd.DataFrame:
             return group[group["transaction_purred"] == "P"].head(1)
         return group
 
-    result = (
+    return (
         df.groupby(["transaction_number", "folio_number"], sort=False, group_keys=False)
-        .apply(_pick, include_groups=True)
+        .apply(_pick, include_groups=False)
         .reset_index(drop=True)
     )
-    return result

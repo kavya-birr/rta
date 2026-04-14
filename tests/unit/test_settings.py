@@ -37,20 +37,17 @@ def test_env_override():
 
 def test_webhook_requires_url_when_selected():
     env = {"OFR_PUBLISHER": "webhook"}
-    with patch.dict(os.environ, env, clear=True):
-        with pytest.raises(ValueError, match="OFR_WEBHOOK_URL"):
-            Settings()
+    with patch.dict(os.environ, env, clear=True), pytest.raises(ValueError, match="OFR_WEBHOOK_URL"):
+        Settings()
 
 
 def test_sqs_requires_queue_url():
     env = {"OFR_PUBLISHER": "sqs"}
-    with patch.dict(os.environ, env, clear=True):
-        with pytest.raises(ValueError, match="OFR_SQS_QUEUE_URL"):
-            Settings()
+    with patch.dict(os.environ, env, clear=True), pytest.raises(ValueError, match="OFR_SQS_QUEUE_URL"):
+        Settings()
 
 
 def test_kafka_requires_brokers_and_topic():
     env = {"OFR_PUBLISHER": "kafka"}
-    with patch.dict(os.environ, env, clear=True):
-        with pytest.raises(ValueError, match="OFR_KAFKA"):
-            Settings()
+    with patch.dict(os.environ, env, clear=True), pytest.raises(ValueError, match="OFR_KAFKA"):
+        Settings()
