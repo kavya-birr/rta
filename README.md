@@ -157,6 +157,18 @@ Manual-review queue for unknown PANs, ambiguous ownership, folio / scheme mismat
 
 ---
 
+## Deep dive — how CAMS and KFintech logic works
+
+For a full walkthrough of the library internals — pipeline steps, field maps,
+classification rules (TRFLAG over TD_PURRED precedence for KFintech, direct
+type mapping for CAMS), pair-removal algorithms, aggregation grouping keys,
+composite key construction, and the KFintech reversal edge cases — read:
+
+**[`src/openreversefeed/README.md`](src/openreversefeed/README.md)**
+
+That's the definitive reference for anyone embedding the library or writing
+a new registrar adapter. The summary table below is a quick index.
+
 ## Code map — where each piece of logic lives
 
 | What | File | Notes |
