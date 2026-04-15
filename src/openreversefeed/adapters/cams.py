@@ -25,6 +25,20 @@ _FIELD_MAP: dict[str, str] = {
     "BROKCODE": "broker_code",
     "PANNO": "pan",
     "INVNAME": "investor_name",
+    # CAMS ships an "REINVEST_F" column that encodes whether the dividend
+    # option on the scheme is a reinvestment or a payout. We capture the
+    # raw flag so validators / downstream can check it against the scheme
+    # master's plan_type.
+    "REINVEST_F": "dividend_option_flag",
+}
+
+# Mapping from the raw CAMS REINVEST_F flag to the canonical plan_type
+# vocabulary the scheme master stores. 'Y' means reinvest, 'N' means
+# payout. Anything else (empty, 'P' for pure growth, nulls) → None,
+# which means "the feed doesn't tell us, don't assert anything."
+CAMS_REINVEST_F_TO_PLAN_TYPE: dict[str, str] = {
+    "Y": "idcw_reinvest",
+    "N": "idcw_payout",
 }
 
 _TYPE_FLIP_MAP: dict[str, str] = {
@@ -38,7 +52,7 @@ _TYPE_FLIP_MAP: dict[str, str] = {
     "DP": "D",
 }
 
-_BUY_TYPES = {"P", "SI", "TI", "D", "BON"}
+_BUY_TYPES = {"P", "SI", "TI", "D", "BON", "NFO"}
 _SELL_TYPES = {"R", "SO", "TO", "DP"}
 _NO_EFFECT_TYPES = {"N", "J"}
 
@@ -52,7 +66,18 @@ _TYPE_TO_TAG = {
     "D": "dividend",
     "DP": "dividend_payout",
     "BON": "bonus",
+    # NFO (New Fund Offer): initial subscription to a new scheme during the
+    # offer period. Classified as a purchase in the ledger — the investor is
+    # acquiring units at the NFO price (usually ₹10) and the outcome is a
+    # buy position just like a regular purchase.
+    "NFO": "new_fund_offer",
 }
+
+# CAMS transaction types we actively refuse. TICOB / TOCOB are the
+# "close of business" variants of transfer in/out and the source system
+# rejects them at validation time. If you have a registrar that ships real
+# COB data you want to process, subclass CamsAdapter and clear this set.
+_REJECTED_TYPES = {"TICOB", "TOCOB"}
 
 
 class _CamsPairStrategy(PairRemovalStrategy):
@@ -87,6 +112,7 @@ class CamsAdapter(FeedAdapter):
     discriminator_headers: set[str] = set()
     field_map = _FIELD_MAP
     type_flip_map = _TYPE_FLIP_MAP
+    rejected_types = _REJECTED_TYPES
 
     def parse(self, file_path: str | Path) -> pd.DataFrame:
         path = Path(file_path)
@@ -112,6 +138,20 @@ class CamsAdapter(FeedAdapter):
             df["__source_meta"] = raw[unknown_cols].to_dict(orient="records")
         else:
             df["__source_meta"] = [{}] * len(df)
+
+        # Translate the CAMS REINVEST_F flag into the canonical plan_type
+        # vocabulary the scheme master uses. Leaves None where the feed
+        # is silent so the validator can skip the check cleanly.
+        if "dividend_option_flag" in df.columns:
+            df["plan_type_from_feed"] = (
+                df["dividend_option_flag"]
+                .astype(str)
+                .str.strip()
+                .str.upper()
+                .map(CAMS_REINVEST_F_TO_PLAN_TYPE)
+            )
+        else:
+            df["plan_type_from_feed"] = None
 
         df.insert(0, "registrar_row_index", range(len(df)))
         return df
