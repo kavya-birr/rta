@@ -65,7 +65,11 @@ services:
     #     mountPath: /data
     #     sizeGB: 1
     # then change OFR_DATA_DIR to /data.
-    healthCheckPath: /clients/arn/
+    # Healthcheck hits the lightest endpoint (root → dashboard redirect).
+    # Don't use /clients/arn/ — that page does heavy work (NAV fetches,
+    # XIRR computation across the book) and would tank the healthcheck on
+    # cold start.
+    healthCheckPath: /
 
   # ─── (No separate cron job needed for AMFI NAV.) ─────────────────────
   # Render's free cron type doesn't support persistent disks, so a cron-driven

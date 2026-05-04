@@ -157,6 +157,31 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Logging — make Django's request errors visible in Render's app logs so
+# 500s actually print a traceback (otherwise DEBUG=False swallows them).
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "[{asctime}] {levelname} {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "django.server":  {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "openreversefeed": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "clients":        {"handlers": ["console"], "level": "INFO", "propagate": False},
+    },
+}
+
 # Allow large feed file uploads (default 2.5 MB is too small for real files).
 DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
