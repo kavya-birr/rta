@@ -76,10 +76,23 @@ def _sniff_raw(file_path: Path) -> pd.DataFrame:
     return _strip_quotes(df)
 
 
+def _normalise_db_url(url: str) -> str:
+    """Render / Heroku style URLs come as `postgres://...` and SQLAlchemy 2.0
+    rejects that prefix outright. We also want to use psycopg3 (we install
+    `psycopg[binary]`, not psycopg2) — so normalise the prefix before passing
+    to SQLAlchemy."""
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg://", 1)
+    if url.startswith("postgresql://") and "+" not in url.split("://", 1)[0]:
+        return url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return url
+
+
 def get_session_factory() -> sessionmaker[Session]:
     global _engine, _session_factory
     if _session_factory is None:
-        _engine = make_engine(settings.OFR_DATABASE_URL, schema="openreversefeed")
+        url = _normalise_db_url(settings.OFR_DATABASE_URL)
+        _engine = make_engine(url, schema="openreversefeed")
         _session_factory = sessionmaker(bind=_engine, expire_on_commit=False, future=True)
     return _session_factory
 

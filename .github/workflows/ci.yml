@@ -83,8 +83,11 @@ jobs:
 
     env:
       OFR_DATABASE_URL: postgresql+psycopg://ofr:ofr@localhost:5432/ofr
+      DATABASE_URL: postgresql+psycopg://ofr:ofr@localhost:5432/ofr
       DJANGO_SECRET_KEY: ci-only-not-for-prod
-      DJANGO_DEBUG: "0"
+      # Keep CI on DEBUG=True so we don't trigger the production-only
+      # SECURE_SSL_REDIRECT / HSTS settings — the test runserver is plain HTTP.
+      DJANGO_DEBUG: "1"
 
     steps:
       - uses: actions/checkout@v4
@@ -96,7 +99,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-          pip install "django>=5,<6"
+          pip install "django>=5,<6" "whitenoise>=6.6,<7" "gunicorn>=21.2,<23"
       - name: alembic migrate library schema
         run: alembic upgrade head
       - name: django system check

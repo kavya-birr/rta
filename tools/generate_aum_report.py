@@ -29,7 +29,7 @@ from clients.amfi_nav import lookup_nav as _lookup_nav  # noqa: E402
 
 # === 1. Fetch AMFI NAV feed ===
 print("Fetching AMFI NAV feed...")
-resp = requests.get("https://www.amfiindia.com/spages/NAVAll.txt")
+resp = requests.get("https://www.amfiindia.com/spages/NAVAll.txt", timeout=30)
 lines = resp.text.strip().split("\n")
 
 amfi_rows = []
