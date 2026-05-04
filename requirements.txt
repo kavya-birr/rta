@@ -6,7 +6,7 @@
 
 # ─── Django + production server ───
 Django>=5.1,<7
-gunicorn>=21.2,<23
+gunicorn>=25.3.0,<26
 whitenoise>=6.6,<7
 requests>=2.31,<3
 
