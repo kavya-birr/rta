@@ -126,7 +126,11 @@ if _database_url:
             "HOST": u.hostname or "",
             "PORT": str(u.port) if u.port else "",
             "CONN_MAX_AGE": 60,
-            "OPTIONS": {"sslmode": "require"} if u.hostname and "localhost" not in u.hostname else {},
+            # `prefer` works whether or not the server supports SSL — Render's
+            # internal Postgres URLs (`dpg-xxx-a`) don't always advertise SSL
+            # on free tier, while external URLs (`*.render.com`) require it.
+            # Using `prefer` covers both cleanly.
+            "OPTIONS": {"sslmode": "prefer"} if u.hostname and "localhost" not in u.hostname else {},
         }
     }
 else:
