@@ -37,23 +37,35 @@ services:
         value: "0"
       - key: DJANGO_SECRET_KEY
         generateValue: true       # Render generates a 64-char random string once
-      - key: OFR_DATABASE_URL      # library DB — points to the Render Postgres below
+      # Both DATABASE_URL and OFR_DATABASE_URL point to the same Render Postgres.
+      # Django uses DATABASE_URL for its own auth/session tables. The library
+      # (openreversefeed) uses OFR_DATABASE_URL for accounts/folios/transactions.
+      # They share one DB but use different table names, no collision.
+      - key: DATABASE_URL          # Django's default DB — replaces sqlite
         fromDatabase:
           name: openreversefeed-db
           property: connectionString
-      - key: OFR_DATA_DIR          # tells Django where to put state files
-        value: /data
+      - key: OFR_DATABASE_URL      # library DB
+        fromDatabase:
+          name: openreversefeed-db
+          property: connectionString
+      - key: OFR_DATA_DIR          # ephemeral — Render free tier has no disk
+        value: /tmp/ofr
       - key: WEB_CONCURRENCY
         value: "2"
-    disk:
-      # Persistent disk for: Django session sqlite, AMFI NAV cache (.nav_cache/),
-      # uploaded feed files (uploaded_files/), per-feature JSON state files
-      # (calendar_events.json, crm_leads.json, client_insights_cache.json,
-      # research_rules.json). Mounted at /data — separate from code dir so
-      # the build-time code doesn't get hidden by the empty disk on first boot.
-      name: ofr-data
-      mountPath: /data
-      sizeGB: 1
+    # NOTE: Render free tier doesn't support persistent disks. State files
+    # (calendar_events.json, crm_leads.json, client_insights_cache.json,
+    # research_rules.json, .nav_cache/) live on /tmp and are wiped on each
+    # cold-start (after ~15 min idle). Ingested portfolio data is safe — that
+    # lives in Postgres and survives restarts.
+    #
+    # To enable persistence: change `plan: free` to `plan: starter` ($7/mo)
+    # and add back the disk block:
+    #   disk:
+    #     name: ofr-data
+    #     mountPath: /data
+    #     sizeGB: 1
+    # then change OFR_DATA_DIR to /data.
     healthCheckPath: /clients/arn/
 
   # ─── (No separate cron job needed for AMFI NAV.) ─────────────────────

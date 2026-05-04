@@ -96,21 +96,41 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "reference_app.wsgi.application"
 
-# Data directory: where stateful files live (sqlite, JSON stores, AMFI cache,
-# uploaded feed files). On Render, set OFR_DATA_DIR=/data so the persistent
-# disk mount sits AWAY from the code directory (mounting on top of code would
-# hide it on first boot). Locally, defaults to BASE_DIR for backwards compat.
+# Data directory: where stateful files live (JSON stores, AMFI cache,
+# uploaded feed files, sqlite when used). On Render free tier this is /tmp/ofr
+# (ephemeral). On Starter+ this is /data (persistent disk).
 DATA_DIR = Path(os.environ.get("OFR_DATA_DIR", BASE_DIR))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# SQLite for Django's own internal tables (sessions, auth if enabled later).
-# NOT the library database. The library uses Postgres via SQLAlchemy.
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": DATA_DIR / "django_internal.sqlite3",
+# Django's own DB (auth, sessions, messages). When DATABASE_URL is set
+# (Render injects it), use Postgres so state survives restarts. Otherwise
+# fall back to sqlite at DATA_DIR for local dev.
+_database_url = os.environ.get("DATABASE_URL", "")
+if _database_url:
+    # Parse the postgres:// URL into Django's DATABASES dict format.
+    # Render's connectionString comes in like:
+    #   postgres://user:pass@host:port/dbname
+    from urllib.parse import urlparse
+    u = urlparse(_database_url.replace("postgres://", "postgresql://", 1))
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": (u.path or "/").lstrip("/"),
+            "USER": u.username or "",
+            "PASSWORD": u.password or "",
+            "HOST": u.hostname or "",
+            "PORT": str(u.port) if u.port else "",
+            "CONN_MAX_AGE": 60,
+            "OPTIONS": {"sslmode": "require"} if u.hostname and "localhost" not in u.hostname else {},
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": DATA_DIR / "django_internal.sqlite3",
+        }
+    }
 
 LANGUAGE_CODE = "en-in"
 TIME_ZONE = "Asia/Kolkata"
