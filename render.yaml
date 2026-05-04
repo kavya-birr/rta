@@ -1,0 +1,74 @@
+# Render Blueprint — declarative deploy for the openreversefeed Django demo.
+# Connect this repo as a Blueprint in the Render dashboard (New → Blueprint)
+# and Render reads this file to provision the web service + Postgres + the
+# nightly AMFI cron. ~5 minutes from connect to public URL.
+
+services:
+  # ─── Web service (Django + gunicorn) ────────────────────────────────────
+  - type: web
+    name: openreversefeed
+    runtime: python
+    plan: free                 # free tier — sleeps after 15 min idle, fine for team testing
+    region: singapore          # closest Render region to India
+    branch: main               # auto-deploy on push to main
+    rootDir: .
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      cd examples/django_reference
+      python manage.py collectstatic --noinput
+      python manage.py migrate --noinput
+      # Bring the library schema up to date (Postgres tables for accounts/folios/transactions)
+      cd ../..
+      alembic upgrade head
+    startCommand: |
+      cd examples/django_reference && \
+        gunicorn reference_app.wsgi:application \
+          --bind 0.0.0.0:$PORT \
+          --workers 2 \
+          --threads 4 \
+          --timeout 60 \
+          --access-logfile - \
+          --error-logfile -
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DJANGO_DEBUG
+        value: "0"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true       # Render generates a 64-char random string once
+      - key: OFR_DATABASE_URL      # library DB — points to the Render Postgres below
+        fromDatabase:
+          name: openreversefeed-db
+          property: connectionString
+      - key: OFR_DATA_DIR          # tells Django where to put state files
+        value: /data
+      - key: WEB_CONCURRENCY
+        value: "2"
+    disk:
+      # Persistent disk for: Django session sqlite, AMFI NAV cache (.nav_cache/),
+      # uploaded feed files (uploaded_files/), per-feature JSON state files
+      # (calendar_events.json, crm_leads.json, client_insights_cache.json,
+      # research_rules.json). Mounted at /data — separate from code dir so
+      # the build-time code doesn't get hidden by the empty disk on first boot.
+      name: ofr-data
+      mountPath: /data
+      sizeGB: 1
+    healthCheckPath: /clients/arn/
+
+  # ─── (No separate cron job needed for AMFI NAV.) ─────────────────────
+  # Render's free cron type doesn't support persistent disks, so a cron-driven
+  # refresh would write to ephemeral storage and the web service wouldn't see
+  # it. Instead, the web service lazy-loads NAVAll.txt on the first request of
+  # each day (~3 s extra for the first user; cached for everyone else).
+  #
+  # When you upgrade to Render Pro, switch this to a `worker` with a shared
+  # disk mount, schedule via APScheduler / Celery beat at 16:00 UTC.
+
+# ─── Postgres database (free tier, 90-day expiry — recreate after that) ─
+databases:
+  - name: openreversefeed-db
+    plan: free
+    region: singapore
+    databaseName: ofr
+    user: ofr

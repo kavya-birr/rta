@@ -1,0 +1,646 @@
+{% extends "base.html" %}
+{% load inr %}
+{% block title %}Research · openreversefeed{% endblock %}
+{% block crumb_leaf %}Research{% endblock %}
+
+{% block content %}
+<style>
+  .res-head { display: flex; justify-content: space-between; align-items: flex-end;
+              flex-wrap: wrap; gap: 1rem; margin-bottom: 0.85rem; }
+  .res-head h1 { margin: 0 0 0.2rem 0; font-size: 1.4rem; font-weight: 700;
+                 letter-spacing: -0.02em; }
+  .res-head p  { margin: 0; color: var(--muted-strong); font-size: 0.78rem; }
+
+  .ai-badge { display: inline-flex; align-items: center; gap: 0.35rem;
+              padding: 0.25rem 0.65rem;
+              background: linear-gradient(135deg, var(--violet), var(--blue));
+              color: #fff; border-radius: 999px;
+              font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+              letter-spacing: 0.07em; }
+  .ai-badge svg { width: 11px; height: 11px; }
+
+  .res-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 0.8rem; }
+  @media (max-width: 1100px) { .res-grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--bg-card); border: 1px solid var(--border);
+           border-radius: 8px; margin-bottom: 0.7rem; overflow: hidden; }
+  .panel .ph { padding: 0.7rem 0.95rem; border-bottom: 1px solid var(--border);
+               display: flex; justify-content: space-between; align-items: center;
+               background: var(--bg-1); }
+  .panel .ph h2 { margin: 0; font-size: 0.78rem; font-weight: 700;
+                  text-transform: uppercase; letter-spacing: 0.08em;
+                  color: var(--fg-dim); display: flex; align-items: center; gap: 0.4rem; }
+  .panel .pb { padding: 0.7rem 0.95rem; }
+
+  /* ─── AI Insights ─── */
+  .ins-card { padding: 0.7rem 0.85rem; border: 1px solid var(--border);
+              border-radius: 6px; margin-bottom: 0.5rem;
+              border-left: 3px solid var(--blue); background: var(--bg-card); }
+  .ins-card.high   { border-left-color: var(--rose);   background: linear-gradient(90deg, var(--rose-bg) 0%, var(--bg-card) 30%); }
+  .ins-card.medium { border-left-color: var(--amber);  background: linear-gradient(90deg, var(--amber-bg) 0%, var(--bg-card) 30%); }
+  .ins-card.low    { border-left-color: var(--cyan);   }
+  .ins-row1 { display: flex; justify-content: space-between; align-items: flex-start;
+              gap: 0.5rem; flex-wrap: wrap; }
+  .ins-title { font-size: 0.83rem; font-weight: 600; color: var(--fg);
+               line-height: 1.35; flex: 1; }
+  .sev { font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.5rem;
+         border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em;
+         flex-shrink: 0; }
+  .sev.high   { background: var(--rose-bg);   color: var(--rose); }
+  .sev.medium { background: var(--amber-bg);  color: var(--amber); }
+  .sev.low    { background: var(--cyan-bg);   color: var(--cyan); }
+  .ins-detail { margin-top: 0.4rem; font-size: 0.76rem; color: var(--fg-dim);
+                line-height: 1.5; }
+  .ins-action { margin-top: 0.45rem; padding: 0.4rem 0.55rem;
+                background: var(--bg-1); border-radius: 5px;
+                font-size: 0.74rem; color: var(--fg); display: flex; gap: 0.4rem;
+                align-items: center; }
+  .ins-action::before { content: '💡'; font-size: 0.8rem; }
+
+  .sev-counts { display: flex; gap: 0.4rem; }
+  .sev-counts .b { font-family: 'JetBrains Mono', monospace;
+                    padding: 0.15rem 0.55rem; border-radius: 999px;
+                    font-size: 0.7rem; font-weight: 700;
+                    font-variant-numeric: tabular-nums; }
+  .sev-counts .b.high   { background: var(--rose-bg); color: var(--rose); }
+  .sev-counts .b.medium { background: var(--amber-bg); color: var(--amber); }
+  .sev-counts .b.low    { background: var(--cyan-bg); color: var(--cyan); }
+
+  /* ─── Per-client expandable insights ─── */
+  details.client-insights {
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg-card);
+    margin-bottom: 0.45rem;
+    overflow: hidden;
+    transition: border-color 0.12s;
+  }
+  details.client-insights[open] { border-color: var(--border-strong); }
+  details.client-insights summary {
+    list-style: none; cursor: pointer;
+    padding: 0.6rem 0.85rem;
+    display: flex; align-items: center; gap: 0.6rem;
+    transition: background 0.12s;
+  }
+  details.client-insights summary::-webkit-details-marker { display: none; }
+  details.client-insights summary:hover { background: var(--bg-1); }
+  details.client-insights[open] summary {
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-1);
+  }
+  .ci-chev { width: 12px; height: 12px; color: var(--muted-strong);
+             transition: transform 0.15s; flex-shrink: 0; }
+  details[open] .ci-chev { transform: rotate(90deg); }
+  .ci-sev-dot { width: 9px; height: 9px; border-radius: 50%;
+                background: var(--bg-3); flex-shrink: 0;
+                box-shadow: 0 0 5px transparent; }
+  .ci-sev-dot.high   { background: var(--rose);    box-shadow: 0 0 5px var(--rose); }
+  .ci-sev-dot.medium { background: var(--amber);   box-shadow: 0 0 5px var(--amber); }
+  .ci-sev-dot.low    { background: var(--cyan);    box-shadow: 0 0 5px var(--cyan); }
+  .ci-name { font-size: 0.88rem; font-weight: 600; color: var(--fg); flex: 1;
+             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ci-name a { color: inherit; text-decoration: none; }
+  .ci-name a:hover { color: var(--blue); }
+  .ci-aum { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+            color: var(--muted-strong); font-variant-numeric: tabular-nums; }
+  .ci-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; height: 20px; padding: 0 0.4rem;
+    background: var(--bg-2); color: var(--muted-strong);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    font-size: 0.7rem; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .ci-count.high   { background: var(--rose-bg);   color: var(--rose);   border-color: rgba(220,38,38,0.3); }
+  .ci-count.medium { background: var(--amber-bg);  color: var(--amber);  border-color: rgba(217,119,6,0.3); }
+  .ci-count.low    { background: var(--cyan-bg);   color: var(--cyan);   border-color: rgba(8,145,178,0.3); }
+  .ci-body { padding: 0.6rem 0.85rem 0.4rem 0.85rem; }
+  .ci-quick-actions { display: flex; gap: 0.35rem; margin-top: 0.5rem;
+                      padding-top: 0.5rem; border-top: 1px dashed var(--border); }
+  .ci-quick-actions a { padding: 0.3rem 0.6rem; font-size: 0.7rem;
+                         font-weight: 600; color: var(--blue);
+                         background: var(--blue-bg);
+                         border: 1px solid rgba(37,99,235,0.2);
+                         border-radius: 5px; text-decoration: none; }
+  .ci-quick-actions a:hover { background: var(--bg-card); border-color: var(--blue); }
+  .ci-quick-actions a svg { width: 11px; height: 11px; vertical-align: -1px; margin-right: 0.2rem; }
+  .clean-row { padding: 0.6rem 0.85rem; font-size: 0.78rem; color: var(--muted);
+                font-style: italic; text-align: center; }
+  .h-divider { margin: 1rem 0 0.5rem; font-size: 0.7rem; font-weight: 700;
+               text-transform: uppercase; letter-spacing: 0.1em;
+               color: var(--fg-dim); display: flex; gap: 0.4rem; align-items: center; }
+  .h-divider::after { content:''; flex:1; height:1px; background: var(--border); }
+
+  .filter-bar-mini { display: flex; gap: 0.3rem; padding: 0.5rem 0.85rem 0;
+                      flex-wrap: wrap; }
+  .filter-bar-mini button {
+    padding: 0.25rem 0.6rem; font-size: 0.7rem; font-weight: 600;
+    background: var(--bg-1); color: var(--muted-strong);
+    border: 1px solid var(--border-strong); border-radius: 999px;
+    cursor: pointer; font-family: inherit;
+  }
+  .filter-bar-mini button:hover { background: var(--bg-card); color: var(--fg); }
+  .filter-bar-mini button.active {
+    background: linear-gradient(180deg, #3b82f6, #2563eb);
+    color: #fff; border-color: var(--blue);
+  }
+
+  /* ─── News feed ─── */
+  .news-cats { display: flex; flex-wrap: wrap; gap: 0.3rem;
+               padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--border); }
+  .news-cats a { padding: 0.3rem 0.7rem; font-size: 0.72rem; font-weight: 600;
+                 color: var(--muted-strong); border: 1px solid var(--border-strong);
+                 background: var(--bg-card); border-radius: 999px;
+                 text-decoration: none; transition: all 0.12s; }
+  .news-cats a:hover { background: var(--bg-1); color: var(--fg); }
+  .news-cats a.active { background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+                        color: #fff; border-color: var(--blue); }
+
+  .news-item { padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--border);
+               display: flex; gap: 0.7rem; align-items: flex-start;
+               text-decoration: none; color: inherit; }
+  .news-item:last-child { border-bottom: none; }
+  .news-item:hover { background: var(--bg-1); }
+  .news-cat-strip { width: 4px; align-self: stretch; border-radius: 2px;
+                    flex-shrink: 0; }
+  .news-cat-strip.equity, .news-cat-strip.sip { background: var(--emerald); }
+  .news-cat-strip.debt { background: var(--cyan); }
+  .news-cat-strip.hybrid { background: var(--violet); }
+  .news-cat-strip.commodity { background: var(--amber); }
+  .news-cat-strip.macro, .news-cat-strip.global { background: var(--blue); }
+  .news-cat-strip.regulation, .news-cat-strip.industry { background: var(--rose); }
+  .news-cat-strip.mutual_funds { background: var(--violet); }
+  .news-body { flex: 1; min-width: 0; }
+  .news-title { font-size: 0.85rem; font-weight: 600; color: var(--fg);
+                line-height: 1.4; }
+  .news-meta { display: flex; gap: 0.6rem; font-size: 0.7rem;
+               color: var(--muted-strong); margin-top: 0.25rem; flex-wrap: wrap; }
+  .news-meta strong { color: var(--fg-dim); font-weight: 600; }
+
+  /* ─── Scheme search ─── */
+  .scheme-search { display: flex; gap: 0.4rem; padding: 0.7rem 0.95rem;
+                   border-bottom: 1px solid var(--border); }
+  .scheme-search input { flex: 1; padding: 0.5rem 0.75rem;
+                          border: 1px solid var(--border-strong);
+                          border-radius: 6px; font-family: inherit;
+                          font-size: 0.85rem; background: var(--bg-card);
+                          color: var(--fg); }
+  .scheme-search input:focus { outline: none; border-color: var(--blue);
+                                box-shadow: 0 0 0 3px var(--blue-glow); }
+  .scheme-list { max-height: 320px; overflow-y: auto; }
+  .scheme-row { padding: 0.5rem 0.85rem; border-bottom: 1px solid var(--border);
+                font-size: 0.78rem; text-decoration: none; color: inherit;
+                display: flex; align-items: center; gap: 0.6rem; }
+  .scheme-row:last-child { border-bottom: none; }
+  .scheme-row:hover { background: var(--bg-1); }
+  .scheme-row .nm { flex: 1; color: var(--fg); font-weight: 500;
+                    overflow: hidden; text-overflow: ellipsis;
+                    white-space: nowrap; }
+  .scheme-row .ac { font-size: 0.65rem; padding: 0.1rem 0.45rem;
+                    background: var(--bg-1); color: var(--muted-strong);
+                    border-radius: 4px; flex-shrink: 0;
+                    border: 1px solid var(--border); }
+</style>
+
+<div class="res-head">
+  <div>
+    <h1>Research <span class="ai-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> AI Powered</span></h1>
+    <p>Market trends, AI-driven recommendations, and fund performance analytics. Updated {{ now|date:"d M, H:i" }}.</p>
+  </div>
+  <div>
+    <a href="?sub={{ sub }}" class="btn btn-ghost btn-sm">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </a>
+  </div>
+</div>
+
+<!-- ─── Sub-tab strip (Book-wide / Market Trends / Fund Analyzer) ─── -->
+<div class="sub-tabs" role="tablist" aria-label="Research sections" style="margin-bottom: 0.85rem;">
+  <a href="?sub=insights" class="{% if sub == 'insights' %}active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+    Book-wide insights
+  </a>
+  <a href="?sub=news" class="{% if sub == 'news' %}active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg>
+    Market Trends
+  </a>
+  <a href="?sub=funds" class="{% if sub == 'funds' %}active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+    Fund Trend Analyzer
+  </a>
+</div>
+
+{% if sub == 'insights' %}
+  <!-- ─── Book-wide insights ─── -->
+  <div class="panel">
+    <div class="ph">
+      <h2>📊 Book-wide insights</h2>
+      <span style="font-size:0.68rem; color:var(--muted);">macro view across the entire ARN</span>
+    </div>
+    <div class="pb" style="padding: 0.7rem 0.95rem;">
+      {% for ins in book_wide %}
+        <div class="ins-card {{ ins.severity }}">
+          <div class="ins-row1">
+            <div class="ins-title">{{ ins.title }}</div>
+            <span class="sev {{ ins.severity }}">{{ ins.severity }}</span>
+          </div>
+          <div class="ins-detail">{{ ins.detail }}</div>
+          <div class="ins-action">{{ ins.action }}</div>
+        </div>
+      {% empty %}
+        <div style="padding:1.5rem; text-align:center; color:var(--muted);">No book-wide flags right now — book is in good shape.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+{% elif sub == 'news' %}
+  <!-- ─── Market Trends ─── -->
+  <div class="panel">
+    <div class="ph">
+      <h2>📰 Market Trends</h2>
+      <span style="font-size:0.68rem; color:var(--muted);">curated from leading sources</span>
+    </div>
+    <div class="news-cats">
+      {% for key, label in news_categories %}
+        <a href="?sub=news&category={{ key }}" class="{% if selected_category == key %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <div>
+      {% for n in news_items %}
+        <a class="news-item" href="{{ n.url }}" target="_blank" rel="noopener">
+          <div class="news-cat-strip {{ n.category }}"></div>
+          <div class="news-body">
+            <div class="news-title">{{ n.title }}</div>
+            <div class="news-meta">
+              <span><strong>{{ n.source }}</strong></span>
+              <span>· {{ n.category_label }}</span>
+              <span>· {{ n.ago }}</span>
+            </div>
+          </div>
+        </a>
+      {% empty %}
+        <div style="padding:1.5rem; text-align:center; color:var(--muted);">No news in this category.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+{% elif sub == 'funds' %}
+  <!-- ─── Fund Trend Analyzer ─── -->
+  <style>
+    /* Big, clean search bar */
+    .ftsearch-wrap {
+      position: relative;
+      padding: 1.1rem 1rem 1rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, var(--bg-1), var(--bg-card));
+    }
+    .ftsearch-icon-wrap {
+      position: relative;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .ftsearch-icon-wrap > svg.search {
+      position: absolute; left: 1.05rem; top: 50%;
+      transform: translateY(-50%); width: 18px; height: 18px;
+      color: var(--muted); pointer-events: none;
+      transition: color 0.12s;
+    }
+    .ftsearch-icon-wrap:focus-within > svg.search { color: var(--blue); }
+    .ftsearch-icon-wrap input {
+      width: 100%;
+      padding: 0.85rem 2.85rem 0.85rem 3rem;
+      border: 1px solid var(--border-strong); border-radius: 10px;
+      font-family: inherit; font-size: 0.95rem;
+      background: var(--bg-card); color: var(--fg);
+      box-shadow: var(--shadow-xs);
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    .ftsearch-icon-wrap input::placeholder { color: var(--muted); }
+    .ftsearch-icon-wrap input:focus {
+      outline: none; border-color: var(--blue);
+      box-shadow: 0 0 0 4px var(--blue-glow), 0 1px 3px rgba(15,23,42,0.04);
+    }
+    .ftsearch-clear {
+      position: absolute; right: 1rem; top: 50%;
+      transform: translateY(-50%); width: 24px; height: 24px;
+      cursor: pointer; color: var(--muted);
+      display: none; align-items: center; justify-content: center;
+      border: 1px solid var(--border-strong);
+      border-radius: 50%;
+      background: var(--bg-card); padding: 0;
+      transition: color 0.12s, border-color 0.12s;
+    }
+    .ftsearch-clear.visible { display: inline-flex; }
+    .ftsearch-clear svg { width: 12px; height: 12px; }
+    .ftsearch-clear:hover { color: var(--rose); border-color: var(--rose); }
+    .ftsearch-dropdown {
+      position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+      background: #fff; border: 1px solid var(--border-strong);
+      border-radius: 10px; box-shadow: var(--shadow-lg);
+      max-height: 420px; overflow-y: auto;
+      z-index: 30; display: none;
+    }
+    .ftsearch-dropdown.open { display: block; }
+    .ftsearch-hint {
+      max-width: 760px; margin: 0.5rem auto 0;
+      font-size: 0.7rem; color: var(--muted);
+      text-align: center;
+    }
+    .ftsearch-hint kbd {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0.05rem 0.35rem; min-width: 16px; height: 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      font-family: inherit; font-size: 0.62rem; font-weight: 600;
+      color: var(--fg-dim);
+    }
+    .ftsearch-result {
+      display: flex; align-items: center; gap: 0.55rem;
+      padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border);
+      font-size: 0.82rem; cursor: pointer;
+      text-decoration: none; color: inherit;
+    }
+    .ftsearch-result:last-child { border-bottom: none; }
+    .ftsearch-result:hover, .ftsearch-result.kbd-active { background: var(--blue-bg); }
+    .ftsearch-result .nm { flex: 1; color: var(--fg); font-weight: 500;
+                            overflow: hidden; text-overflow: ellipsis;
+                            white-space: nowrap; }
+    .ftsearch-result .nm mark {
+      background: rgba(245, 158, 11, 0.35); color: inherit; padding: 0;
+    }
+    .ftsearch-result .amc { font-size: 0.66rem; color: var(--muted-strong);
+                             margin-top: 0.1rem; }
+    .ftsearch-result .ac {
+      font-size: 0.62rem; padding: 0.08rem 0.42rem;
+      background: var(--bg-1); color: var(--muted-strong);
+      border-radius: 4px; flex-shrink: 0;
+      border: 1px solid var(--border);
+    }
+    .ftsearch-result-text { flex: 1; min-width: 0; }
+    .ftsearch-empty, .ftsearch-loading {
+      padding: 0.7rem 0.85rem; font-size: 0.78rem;
+      color: var(--muted); text-align: center; font-style: italic;
+    }
+
+    /* AMC group */
+    .amc-group { border-bottom: 1px solid var(--border); }
+    .amc-group:last-child { border-bottom: none; }
+    .amc-group > summary {
+      display: flex; align-items: center; gap: 0.55rem;
+      padding: 0.5rem 0.85rem;
+      cursor: pointer; list-style: none;
+      background: var(--bg-card);
+      transition: background 0.12s;
+      font-size: 0.84rem; font-weight: 600; color: var(--fg);
+    }
+    .amc-group > summary::-webkit-details-marker { display: none; }
+    .amc-group > summary:hover { background: var(--bg-1); }
+    .amc-group[open] > summary {
+      background: var(--bg-1);
+      border-bottom: 1px solid var(--border);
+    }
+    .amc-chev { width: 12px; height: 12px; color: var(--muted-strong);
+                 transition: transform 0.15s; flex-shrink: 0; }
+    .amc-group[open] .amc-chev { transform: rotate(90deg); }
+    .amc-name { flex: 1; overflow: hidden; text-overflow: ellipsis;
+                 white-space: nowrap; }
+    .amc-count {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 22px; height: 19px; padding: 0 0.45rem;
+      background: var(--bg-2); color: var(--muted-strong);
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      font-size: 0.66rem; font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .amc-meta-strip {
+      display: flex; gap: 0.85rem; align-items: center;
+      flex-wrap: wrap; padding: 0.55rem 0.85rem;
+      font-size: 0.72rem; color: var(--muted-strong);
+      background: var(--bg-1); border-bottom: 1px solid var(--border);
+    }
+    .amc-meta-strip strong { color: var(--fg); font-family: 'JetBrains Mono', monospace; }
+    .amc-actions { margin-left: auto; display: flex; gap: 0.35rem; }
+    .amc-action-btn {
+      padding: 0.18rem 0.55rem; font-size: 0.66rem; font-weight: 600;
+      color: var(--muted-strong); background: var(--bg-card);
+      border: 1px solid var(--border-strong); border-radius: 4px;
+      cursor: pointer; font-family: inherit;
+    }
+    .amc-action-btn:hover { background: var(--bg-0); color: var(--fg); }
+  </style>
+
+  <div class="panel">
+    <div class="ph">
+      <h2>📈 Fund Trend Analyzer</h2>
+      <span style="font-size:0.68rem; color:var(--muted);">historical NAV trends · sourced from mfapi.in</span>
+    </div>
+
+    <!-- ── Live autocomplete search ── -->
+    <div class="ftsearch-wrap">
+      <div class="ftsearch-icon-wrap">
+        <svg class="search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input
+          type="text"
+          id="ftSearchInput"
+          autocomplete="off"
+          placeholder="Search funds by scheme name, code, or ISIN…"
+          value=""
+        >
+        <button type="button" class="ftsearch-clear" id="ftSearchClear" aria-label="Clear search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <div class="ftsearch-dropdown" id="ftSearchDropdown" role="listbox"></div>
+      </div>
+      <div class="ftsearch-hint">
+        Results appear as you type · use <kbd>↑</kbd> <kbd>↓</kbd> to navigate · <kbd>Enter</kbd> to open · <kbd>Esc</kbd> to close
+      </div>
+    </div>
+
+    <!-- ── AMC-grouped scheme list ── -->
+    <div class="amc-meta-strip">
+      <span><strong>{{ scheme_total }}</strong> scheme{{ scheme_total|pluralize }} across <strong>{{ amc_total }}</strong> AMC{{ amc_total|pluralize }}{% if search_q %} matching "<em>{{ search_q }}</em>"{% endif %}</span>
+      <span class="amc-actions">
+        <button type="button" class="amc-action-btn" id="amcExpandAll">Expand all</button>
+        <button type="button" class="amc-action-btn" id="amcCollapseAll">Collapse all</button>
+      </span>
+    </div>
+
+    <div class="scheme-list" id="amcList">
+      {% for g in schemes_grouped %}
+        <details class="amc-group" {% if search_q or forloop.counter <= 3 %}open{% endif %}>
+          <summary>
+            <svg class="amc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <span class="amc-name">{{ g.amc_name }}</span>
+            <span class="amc-count">{{ g.count }}</span>
+          </summary>
+          <div>
+            {% for s in g.schemes %}
+              <a href="{% url 'clients:research_fund' s.scheme_code %}" class="scheme-row">
+                <span class="nm">{{ s.name }}</span>
+                {% if s.asset_class %}<span class="ac">{{ s.asset_class }}</span>{% endif %}
+              </a>
+            {% endfor %}
+          </div>
+        </details>
+      {% empty %}
+        <div style="padding:1.5rem; text-align:center; color:var(--muted); font-size:0.82rem;">
+          {% if search_q %}No matches for "<strong>{{ search_q }}</strong>". Try a different keyword or clear the filter.{% else %}No schemes available yet — upload a feed file to populate.{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <script>
+  // Live-typing autocomplete + AMC expand/collapse + filter-list
+  (function() {
+    const input    = document.getElementById('ftSearchInput');
+    const clearBtn = document.getElementById('ftSearchClear');
+    const dropdown = document.getElementById('ftSearchDropdown');
+    const expand   = document.getElementById('amcExpandAll');
+    const collapse = document.getElementById('amcCollapseAll');
+    const fundUrlTpl = "{% url 'clients:research_fund' 'CODE_PLACEHOLDER' %}";
+    const searchUrl  = "{% url 'clients:research_fund_search' %}";
+
+    // ── Expand / collapse all AMC groups ──
+    expand.addEventListener('click', () => {
+      document.querySelectorAll('.amc-group').forEach(g => g.open = true);
+    });
+    collapse.addEventListener('click', () => {
+      document.querySelectorAll('.amc-group').forEach(g => g.open = false);
+    });
+
+    // ── Clear button visibility ──
+    function updateClear() {
+      clearBtn.classList.toggle('visible', input.value.length > 0);
+    }
+    updateClear();
+    clearBtn.addEventListener('click', () => {
+      input.value = '';
+      updateClear();
+      dropdown.classList.remove('open');
+      input.focus();
+    });
+
+    // ── Highlight matching part in result name ──
+    function highlight(text, q) {
+      if (!q) return escapeHtml(text);
+      const lower = text.toLowerCase();
+      const idx = lower.indexOf(q.toLowerCase());
+      if (idx < 0) return escapeHtml(text);
+      return escapeHtml(text.substring(0, idx))
+        + '<mark>' + escapeHtml(text.substring(idx, idx + q.length)) + '</mark>'
+        + escapeHtml(text.substring(idx + q.length));
+    }
+    function escapeHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // ── Debounced fetch + dropdown render ──
+    let debounceTimer = null;
+    let activeIndex = -1;
+    let lastResults = [];
+
+    async function fetchResults(q) {
+      if (q.length < 2) {
+        dropdown.classList.remove('open');
+        lastResults = [];
+        return;
+      }
+      dropdown.innerHTML = '<div class="ftsearch-loading">Searching…</div>';
+      dropdown.classList.add('open');
+      try {
+        const resp = await fetch(searchUrl + '?q=' + encodeURIComponent(q));
+        if (!resp.ok) throw new Error('http ' + resp.status);
+        const data = await resp.json();
+        lastResults = data.results || [];
+        renderDropdown(q, lastResults, data.count || 0);
+      } catch (e) {
+        dropdown.innerHTML = '<div class="ftsearch-empty">Search failed — try again.</div>';
+      }
+    }
+
+    function renderDropdown(q, results, total) {
+      activeIndex = -1;
+      if (!results.length) {
+        dropdown.innerHTML = '<div class="ftsearch-empty">No funds match "' + escapeHtml(q) + '".</div>';
+        return;
+      }
+      const moreHint = total > results.length
+        ? `<div class="ftsearch-empty" style="padding-top:0.4rem;border-top:1px dashed var(--border);">Showing top ${results.length} of ${total} matches — refine your search or click Filter list.</div>`
+        : '';
+      dropdown.innerHTML = results.map((r, i) => `
+        <a class="ftsearch-result" data-idx="${i}" href="${fundUrlTpl.replace('CODE_PLACEHOLDER', encodeURIComponent(r.scheme_code))}">
+          <div class="ftsearch-result-text">
+            <div class="nm">${highlight(r.name, q)}</div>
+            <div class="amc">${escapeHtml(r.amc_name || '')}</div>
+          </div>
+          ${r.asset_class ? `<span class="ac">${escapeHtml(r.asset_class)}</span>` : ''}
+        </a>
+      `).join('') + moreHint;
+    }
+
+    input.addEventListener('input', () => {
+      updateClear();
+      const q = input.value.trim();
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchResults(q), 150);
+    });
+
+    // ── Keyboard navigation in dropdown ──
+    input.addEventListener('keydown', (e) => {
+      const items = dropdown.querySelectorAll('.ftsearch-result');
+      if (!items.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIndex = (activeIndex + 1) % items.length;
+        items.forEach(it => it.classList.remove('kbd-active'));
+        items[activeIndex].classList.add('kbd-active');
+        items[activeIndex].scrollIntoView({block: 'nearest'});
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIndex = (activeIndex - 1 + items.length) % items.length;
+        items.forEach(it => it.classList.remove('kbd-active'));
+        items[activeIndex].classList.add('kbd-active');
+        items[activeIndex].scrollIntoView({block: 'nearest'});
+      } else if (e.key === 'Enter') {
+        if (activeIndex >= 0) {
+          e.preventDefault();
+          window.location.href = items[activeIndex].getAttribute('href');
+        }
+      } else if (e.key === 'Escape') {
+        dropdown.classList.remove('open');
+        input.blur();
+      }
+    });
+
+    // ── Close dropdown on click outside ──
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.ftsearch-wrap')) {
+        dropdown.classList.remove('open');
+      }
+    });
+    input.addEventListener('focus', () => {
+      const q = input.value.trim();
+      if (q.length >= 2 && lastResults.length > 0) {
+        renderDropdown(q, lastResults, lastResults.length);
+        dropdown.classList.add('open');
+      }
+    });
+  })();
+  </script>
+{% endif %}
+
+<div style="margin-top:0.6rem; padding:0.6rem 0.85rem; background:var(--bg-1);
+            border:1px solid var(--border); border-radius:5px;
+            font-size:0.7rem; color:var(--fg-dim); line-height:1.5;">
+  <strong>About insights:</strong> Book-wide insights above are computed across the entire
+  ARN. Per-client insights live on each client's <strong>Insights</strong> tab (open a client →
+  switch to Insights → Generate). Both run a transparent rule engine — edit thresholds at
+  <a href="{% url 'clients:research_rules' %}" style="color:var(--blue);font-weight:600;">Workspace → Research Rules</a>.
+</div>
+{% endblock %}

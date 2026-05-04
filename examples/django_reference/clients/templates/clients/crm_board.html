@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% load inr %}
+{% block title %}CRM · openreversefeed{% endblock %}
+{% block crumb_root %}Clients{% endblock %}
+{% block crumb_leaf %}CRM{% endblock %}
+
+{% block content %}
+<style>
+  .crm-head {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap; margin-bottom: 0.85rem;
+  }
+  .crm-head h1 { margin: 0 0 0.15rem 0; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+  .crm-head p  { margin: 0; color: var(--muted-strong); font-size: 0.78rem; }
+
+  .crm-kpis {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.55rem;
+    margin-bottom: 1rem;
+  }
+  .crm-kpi {
+    padding: 0.7rem 0.9rem; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: 7px;
+  }
+  .crm-kpi .lab { font-size: 0.65rem; font-weight: 700; color: var(--muted);
+                  text-transform: uppercase; letter-spacing: 0.07em; }
+  .crm-kpi .val { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em;
+                  color: var(--fg); margin-top: 0.25rem;
+                  font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+  .crm-kpi .sub { font-size: 0.72rem; color: var(--muted-strong); margin-top: 0.2rem; }
+
+  .funnel {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(240px, 1fr));
+    gap: 0.65rem;
+    align-items: start;
+  }
+  @media (max-width: 1100px) { .funnel { grid-template-columns: repeat(2, 1fr); } }
+
+  .col {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.55rem 0.55rem 0.7rem 0.55rem;
+    min-height: 360px;
+  }
+  .col-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.2rem 0.4rem 0.55rem 0.4rem;
+    border-bottom: 1px dashed var(--border-strong);
+    margin-bottom: 0.55rem;
+  }
+  .col-head .lbl { display: flex; align-items: center; gap: 0.4rem;
+                   font-size: 0.78rem; font-weight: 700; color: var(--fg); }
+  .col-head .dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 6px currentColor; }
+  .col-head .ct  { font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.5rem;
+                   border-radius: 999px; background: var(--bg-card);
+                   border: 1px solid var(--border-strong); color: var(--muted-strong);
+                   font-variant-numeric: tabular-nums; }
+  .col.blue    .dot { background: var(--blue);    color: var(--blue); }
+  .col.cyan    .dot { background: var(--cyan);    color: var(--cyan); }
+  .col.amber   .dot { background: var(--amber);   color: var(--amber); }
+  .col.emerald .dot { background: var(--emerald); color: var(--emerald); }
+  .col.blue    { border-top: 2px solid var(--blue); }
+  .col.cyan    { border-top: 2px solid var(--cyan); }
+  .col.amber   { border-top: 2px solid var(--amber); }
+  .col.emerald { border-top: 2px solid var(--emerald); }
+
+  .lead-card {
+    display: block;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.55rem 0.65rem;
+    margin-bottom: 0.45rem;
+    text-decoration: none; color: var(--fg);
+    transition: border-color 0.12s, transform 0.1s, box-shadow 0.12s;
+  }
+  .lead-card:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+  }
+  .lead-card .nm { font-size: 0.86rem; font-weight: 600; color: var(--fg); }
+  .lead-card .meta-row { display: flex; gap: 0.6rem; font-size: 0.7rem;
+                         color: var(--muted-strong); margin-top: 0.18rem;
+                         flex-wrap: wrap; }
+  .lead-card .meta-row .pan { font-family: 'JetBrains Mono', monospace; }
+  .lead-card .meta-row .aum { color: var(--emerald); font-weight: 600; }
+
+  .progress-thin { margin-top: 0.4rem; height: 3px; background: var(--bg-2);
+                   border-radius: 999px; overflow: hidden; }
+  .progress-thin > span { display: block; height: 100%; background: var(--blue);
+                          border-radius: 999px; transition: width 0.3s; }
+  .col.cyan    .progress-thin > span { background: var(--cyan); }
+  .col.amber   .progress-thin > span { background: var(--amber); }
+  .col.emerald .progress-thin > span { background: var(--emerald); }
+  .progress-text { font-size: 0.66rem; color: var(--muted); margin-top: 0.2rem;
+                   font-variant-numeric: tabular-nums; }
+
+  .col-empty { padding: 0.85rem 0.4rem; text-align: center;
+               font-size: 0.75rem; color: var(--muted); font-style: italic; }
+
+  /* Add-lead modal */
+  .modal-overlay { display: none; position: fixed; inset: 0;
+                   background: rgba(15,23,42,0.45); backdrop-filter: blur(3px);
+                   z-index: 60; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 12px; box-shadow: var(--shadow-lg);
+    width: 92%; max-width: 520px; padding: 1.2rem 1.4rem;
+    border: 1px solid var(--border-strong);
+  }
+  .modal-card h2 { margin: 0 0 0.85rem 0; font-size: 1.05rem; font-weight: 700; }
+  .modal-card .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem 0.7rem; }
+  .modal-card label { display: block; font-size: 0.7rem; font-weight: 600;
+                      color: var(--muted-strong); margin-bottom: 0.25rem;
+                      text-transform: uppercase; letter-spacing: 0.05em; }
+  .modal-card input, .modal-card textarea, .modal-card select {
+    width: 100%; padding: 0.45rem 0.6rem; border: 1px solid var(--border-strong);
+    border-radius: 6px; font-family: inherit; font-size: 0.85rem;
+    background: var(--bg-card); color: var(--fg);
+  }
+  .modal-card textarea { min-height: 60px; resize: vertical; }
+  .modal-card input:focus, .modal-card textarea:focus, .modal-card select:focus {
+    outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-glow);
+  }
+  .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end;
+                   margin-top: 1rem; }
+  .full { grid-column: 1 / -1; }
+</style>
+
+<div class="crm-head">
+  <div>
+    <h1>Lead Funnel</h1>
+    <p>Track prospects from first contact through onboarding to first investment.</p>
+  </div>
+  <div style="display:flex; gap:0.5rem;">
+    <button class="btn btn-primary" onclick="document.getElementById('addModal').classList.add('open')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Lead
+    </button>
+  </div>
+</div>
+
+<div class="crm-kpis">
+  <div class="crm-kpi">
+    <div class="lab">Total Leads</div>
+    <div class="val">{{ total_leads }}</div>
+    <div class="sub">across all stages</div>
+  </div>
+  <div class="crm-kpi">
+    <div class="lab">Open Pipeline AUM</div>
+    <div class="val">₹{{ total_pipeline|inr0 }}</div>
+    <div class="sub">expected from active leads</div>
+  </div>
+  <div class="crm-kpi">
+    <div class="lab">Invested AUM</div>
+    <div class="val">₹{{ invested_aum|inr0 }}</div>
+    <div class="sub">closed deals</div>
+  </div>
+  <div class="crm-kpi">
+    <div class="lab">Conversion Rate</div>
+    <div class="val">{{ conversion_rate|floatformat:1 }}%</div>
+    <div class="sub">leads → invested</div>
+  </div>
+</div>
+
+<div class="funnel">
+  {% for col in columns %}
+  <div class="col {{ col.color }}">
+    <div class="col-head">
+      <div class="lbl">
+        <span class="dot"></span>{{ col.label }}
+        {% if col.key == "new_prospect" %}
+          
+        {% elif col.key == "contacted" %}
+          
+        {% elif col.key == "kyc_pending" %}
+          
+        {% elif col.key == "invested" %}
+          
+        {% endif %}
+      </div>
+      <div class="ct">{{ col.count }}</div>
+    </div>
+    {% if col.leads %}
+      {% for lead in col.leads %}
+        <a href="{% url 'clients:crm_detail' lead.id %}" class="lead-card">
+          <div class="nm">{{ lead.name }}</div>
+          <div class="meta-row">
+            {% if lead.phone %}<span>📞 {{ lead.phone }}</span>{% endif %}
+            {% if lead.pan %}<span class="pan">{{ lead.pan }}</span>{% endif %}
+            {% if lead.expected_aum %}<span class="aum">₹{{ lead.expected_aum|inr0 }}</span>{% endif %}
+          </div>
+          {% if lead.progress.1 %}
+            <div class="progress-thin">
+              <span style="width: {% widthratio lead.progress.0 lead.progress.1 100 %}%"></span>
+            </div>
+            <div class="progress-text">{{ lead.progress.0 }} of {{ lead.progress.1 }} steps complete</div>
+          {% endif %}
+        </a>
+      {% endfor %}
+    {% else %}
+      <div class="col-empty">No leads in this stage</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Add Lead modal -->
+<div class="modal-overlay" id="addModal" onclick="if (event.target===this) this.classList.remove('open')">
+  <div class="modal-card">
+    <h2>New Lead</h2>
+    <form method="post" action="{% url 'clients:crm_create' %}">
+      {% csrf_token %}
+      <div class="row">
+        <div class="full">
+          <label>Full Name *</label>
+          <input type="text" name="name" required autofocus>
+        </div>
+        <div>
+          <label>Phone</label>
+          <input type="text" name="phone" placeholder="+91 ...">
+        </div>
+        <div>
+          <label>Email</label>
+          <input type="text" name="email" placeholder="name@example.com">
+        </div>
+        <div>
+          <label>PAN</label>
+          <input type="text" name="pan" placeholder="ABCDE1234F" style="text-transform:uppercase">
+        </div>
+        <div>
+          <label>Expected AUM (₹)</label>
+          <input type="number" name="expected_aum" min="0" step="1" placeholder="0">
+        </div>
+        <div class="full">
+          <label>Source</label>
+          <select name="source">
+            <option value="">— select —</option>
+            <option value="referral">Referral</option>
+            <option value="walk-in">Walk-in</option>
+            <option value="online">Online enquiry</option>
+            <option value="event">Event / seminar</option>
+            <option value="cold-outreach">Cold outreach</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="full">
+          <label>Notes</label>
+          <textarea name="notes" placeholder="Initial conversation, interests, timing..."></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('addModal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add to funnel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

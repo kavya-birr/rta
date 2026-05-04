@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+{% block title %}Calendar · openreversefeed{% endblock %}
+{% block crumb_leaf %}Calendar{% endblock %}
+
+{% block content %}
+<style>
+  .cal-head {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    flex-wrap: wrap; gap: 1rem; margin-bottom: 0.85rem;
+  }
+  .cal-head h1 { margin: 0 0 0.2rem 0; font-size: 1.4rem; font-weight: 700;
+                 letter-spacing: -0.02em; }
+  .cal-head p  { margin: 0; color: var(--muted-strong); font-size: 0.78rem; }
+
+  .cal-layout { display: grid; grid-template-columns: 1fr 320px; gap: 0.85rem; }
+  @media (max-width: 1000px) { .cal-layout { grid-template-columns: 1fr; } }
+
+  /* ─── Month grid ─── */
+  .month-card { background: var(--bg-card); border: 1px solid var(--border);
+                border-radius: 8px; overflow: hidden; }
+  .month-bar  { display: flex; justify-content: space-between; align-items: center;
+                padding: 0.7rem 0.85rem; border-bottom: 1px solid var(--border); }
+  .month-bar h2 { margin: 0; font-size: 1rem; font-weight: 700;
+                  letter-spacing: -0.01em; }
+  .month-bar .nav-btns { display: flex; gap: 0.3rem; }
+  .month-bar .nav-btn  { padding: 0.35rem 0.7rem; font-size: 0.75rem;
+                         font-weight: 600; border: 1px solid var(--border-strong);
+                         background: var(--bg-card); color: var(--fg-dim);
+                         border-radius: 5px; cursor: pointer;
+                         text-decoration: none; line-height: 1; height: 26px;
+                         display: inline-flex; align-items: center; gap: 0.3rem; }
+  .month-bar .nav-btn:hover { background: var(--bg-1); color: var(--fg); }
+  .month-bar .nav-btn svg { width: 12px; height: 12px; }
+
+  .grid-head {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    background: var(--bg-1); border-bottom: 1px solid var(--border);
+  }
+  .grid-head > div { padding: 0.4rem 0.5rem; font-size: 0.62rem;
+                     font-weight: 700; text-transform: uppercase;
+                     letter-spacing: 0.07em; color: var(--muted);
+                     text-align: center; }
+  .grid-week { display: grid; grid-template-columns: repeat(7, 1fr);
+               border-bottom: 1px solid var(--border); }
+  .grid-week:last-child { border-bottom: none; }
+  .grid-cell { min-height: 86px; padding: 0.35rem 0.4rem 0.4rem 0.4rem;
+               border-right: 1px solid var(--border);
+               position: relative; cursor: pointer;
+               transition: background 0.12s; }
+  .grid-cell:last-child { border-right: none; }
+  .grid-cell:hover { background: var(--bg-1); }
+  .grid-cell.out { background: var(--bg-1); color: var(--muted); }
+  .grid-cell.today { background: var(--blue-bg); }
+  .grid-cell.today .day-num { color: var(--blue); font-weight: 700; }
+  .day-num { font-size: 0.72rem; font-weight: 600; color: var(--fg-dim);
+             font-variant-numeric: tabular-nums; }
+  .ev-pill { display: block; margin-top: 0.18rem; padding: 0.1rem 0.4rem;
+             font-size: 0.66rem; font-weight: 600; color: #fff;
+             background: var(--blue); border-radius: 3px;
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+             text-decoration: none; }
+  .ev-pill.review   { background: var(--blue); }
+  .ev-pill.kyc      { background: var(--amber); }
+  .ev-pill.call     { background: var(--cyan); }
+  .ev-pill.followup { background: var(--violet); }
+  .ev-pill.planning { background: var(--emerald); }
+  .ev-pill.other    { background: var(--muted-strong); }
+  .more-link { font-size: 0.62rem; color: var(--blue); margin-top: 0.15rem;
+               display: block; }
+
+  /* ─── Right rail ─── */
+  .rail-card { background: var(--bg-card); border: 1px solid var(--border);
+               border-radius: 8px; padding: 0.85rem 0.95rem;
+               margin-bottom: 0.65rem; }
+  .rail-card h3 { margin: 0 0 0.55rem 0; font-size: 0.7rem; font-weight: 700;
+                  text-transform: uppercase; letter-spacing: 0.08em;
+                  color: var(--fg-dim); display: flex;
+                  justify-content: space-between; align-items: center; }
+  .rail-card h3 .ct { font-family: 'JetBrains Mono', monospace;
+                       background: var(--bg-1); padding: 0.1rem 0.5rem;
+                       border-radius: 999px; font-size: 0.7rem;
+                       color: var(--muted-strong); border: 1px solid var(--border-strong); }
+  .today-event { padding: 0.55rem 0.65rem; background: var(--bg-1);
+                 border-left: 3px solid var(--blue); border-radius: 4px;
+                 margin-bottom: 0.4rem; font-size: 0.8rem; }
+  .today-event.review   { border-left-color: var(--blue); }
+  .today-event.kyc      { border-left-color: var(--amber); }
+  .today-event.call     { border-left-color: var(--cyan); }
+  .today-event.followup { border-left-color: var(--violet); }
+  .today-event.planning { border-left-color: var(--emerald); }
+  .today-event.other    { border-left-color: var(--muted-strong); }
+  .today-event .time { font-family: 'JetBrains Mono', monospace;
+                       font-size: 0.72rem; color: var(--muted-strong);
+                       font-weight: 600; }
+  .today-event .ttl  { font-weight: 600; color: var(--fg); margin-top: 0.1rem; }
+  .today-event .who  { font-size: 0.72rem; color: var(--muted); margin-top: 0.1rem; }
+  .empty-rail { font-size: 0.78rem; color: var(--muted); text-align: center;
+                padding: 0.7rem 0.4rem; font-style: italic; }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0;
+                   background: rgba(15,23,42,0.45); backdrop-filter: blur(3px);
+                   z-index: 60; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal-card { background: #fff; border-radius: 12px; box-shadow: var(--shadow-lg);
+                width: 92%; max-width: 540px; padding: 1.2rem 1.4rem;
+                border: 1px solid var(--border-strong);
+                max-height: 88vh; overflow-y: auto; }
+  .modal-card h2 { margin: 0 0 0.85rem 0; font-size: 1.05rem; font-weight: 700; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem 0.7rem; }
+  .form-grid .full { grid-column: 1 / -1; }
+  .form-grid label { display: block; font-size: 0.68rem; font-weight: 700;
+                     color: var(--muted-strong); margin-bottom: 0.22rem;
+                     text-transform: uppercase; letter-spacing: 0.05em; }
+  .form-grid input, .form-grid textarea, .form-grid select {
+    width: 100%; padding: 0.42rem 0.6rem; border: 1px solid var(--border-strong);
+    border-radius: 6px; font-family: inherit; font-size: 0.85rem;
+    background: var(--bg-card); color: var(--fg);
+  }
+  .form-grid input:focus, .form-grid textarea:focus, .form-grid select:focus {
+    outline: none; border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-glow); }
+  .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end;
+                   margin-top: 1rem; }
+
+  .ics-callout {
+    background: linear-gradient(135deg, var(--cyan-bg), var(--blue-bg));
+    border: 1px solid rgba(8,145,178,0.25); padding: 0.75rem 0.95rem;
+    border-radius: 7px; font-size: 0.78rem; color: var(--fg-dim);
+    line-height: 1.5; margin-top: 0.65rem;
+  }
+  .ics-callout strong { color: var(--fg); }
+  .ics-callout code  { background: var(--bg-card); padding: 0.1rem 0.35rem;
+                        border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+                        font-size: 0.72rem; color: var(--cyan);
+                        border: 1px solid var(--border-strong);
+                        word-break: break-all; }
+</style>
+
+<div class="cal-head">
+  <div>
+    <h1>Calendar</h1>
+    <p>Track meetings, reviews and follow-ups. Subscribe from Google Calendar or Teams via the .ics feed.</p>
+  </div>
+  <div style="display:flex; gap:0.5rem;">
+    <a href="{{ ics_url }}" class="btn btn-ghost btn-sm" download>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export .ics
+    </a>
+    <button class="btn btn-primary btn-sm" onclick="openModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Meeting
+    </button>
+  </div>
+</div>
+
+<div class="cal-layout">
+  <!-- ─── LEFT: month grid ─── -->
+  <div class="month-card">
+    <div class="month-bar">
+      <h2>{{ month_label }}</h2>
+      <div class="nav-btns">
+        <a class="nav-btn" href="?date={{ prev_focus|date:'Y-m-d' }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </a>
+        <a class="nav-btn" href="?date={{ today|date:'Y-m-d' }}">Today</a>
+        <a class="nav-btn" href="?date={{ next_focus|date:'Y-m-d' }}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+      </div>
+    </div>
+    <div class="grid-head">
+      <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+    </div>
+    {% for week in weeks %}
+      <div class="grid-week">
+        {% for cell in week %}
+          <div class="grid-cell {% if not cell.in_month %}out{% endif %} {% if cell.is_today %}today{% endif %}"
+               onclick="openModalWithDate('{{ cell.iso }}')">
+            <div class="day-num">{{ cell.date|date:"j" }}</div>
+            {% for ev in cell.events|slice:":3" %}
+              <a href="#" class="ev-pill {{ ev.kind }}"
+                 onclick="event.stopPropagation(); openEditModal('{{ ev.id }}'); return false;"
+                 title="{{ ev.starts_at|slice:'11:16' }} · {{ ev.title }}">
+                {{ ev.starts_at|slice:"11:16" }} {{ ev.title }}
+              </a>
+            {% endfor %}
+            {% if cell.events|length > 3 %}
+              <span class="more-link">+{{ cell.events|length|add:"-3" }} more</span>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- ─── RIGHT rail ─── -->
+  <div>
+    <div class="rail-card">
+      <h3>Today {{ today|date:"D, j M" }} <span class="ct">{{ todays_stats.today_count }}</span></h3>
+      {% for ev in todays_stats.todays_events %}
+        <div class="today-event {{ ev.kind }}">
+          <div class="time">{{ ev.starts_at|slice:"11:16" }} – {{ ev.ends_at|slice:"11:16" }}</div>
+          <div class="ttl">{{ ev.title }}</div>
+          {% if ev.with_who %}<div class="who">with {{ ev.with_who }}{% if ev.location %} · 📍 {{ ev.location }}{% endif %}</div>{% endif %}
+        </div>
+      {% empty %}
+        <div class="empty-rail">No meetings scheduled today.</div>
+      {% endfor %}
+    </div>
+
+    <div class="rail-card">
+      <h3>This Week <span class="ct">{{ todays_stats.upcoming_7d_count }}</span></h3>
+      <p style="margin:0;font-size:0.78rem;color:var(--muted-strong);line-height:1.4;">
+        {{ todays_stats.upcoming_7d_count }} meeting{{ todays_stats.upcoming_7d_count|pluralize }} in the next 7 days.
+      </p>
+      <div class="ics-callout">
+        <strong>Sync with Google Calendar / Teams:</strong>
+        Add this URL as a calendar subscription:<br>
+        <code id="icsUrl">{{ request.scheme }}://{{ request.get_host }}{{ ics_url }}</code>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('icsUrl').textContent); this.textContent='Copied ✓';"
+                style="margin-top:0.4rem; padding:0.3rem 0.65rem; border:1px solid var(--cyan); background:var(--bg-card); color:var(--cyan); border-radius:5px; font-family:inherit; font-size:0.72rem; font-weight:600; cursor:pointer;">
+          Copy URL
+        </button>
+        <div style="margin-top:0.45rem; font-size:0.7rem; color:var(--muted);">
+          Google Calendar → Other calendars → From URL · Outlook → Add Calendar → Subscribe from web.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── New / Edit meeting modal ─── -->
+<div class="modal-overlay" id="meetingModal" onclick="if (event.target===this) closeModal()">
+  <div class="modal-card">
+    <h2 id="modalTitle">New meeting</h2>
+    <form id="meetingForm" method="post" action="{% url 'clients:calendar_create' %}">
+      {% csrf_token %}
+      <div class="form-grid">
+        <div class="full">
+          <label>Title *</label>
+          <input type="text" name="title" id="f_title" required autofocus>
+        </div>
+        <div>
+          <label>Start *</label>
+          <input type="datetime-local" name="starts_at" id="f_starts_at" required>
+        </div>
+        <div>
+          <label>End</label>
+          <input type="datetime-local" name="ends_at" id="f_ends_at">
+        </div>
+        <div>
+          <label>Type</label>
+          <select name="kind" id="f_kind">
+            {% for key, label, color in kinds %}
+              <option value="{{ key }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Location</label>
+          <input type="text" name="location" id="f_location" placeholder="Office / Zoom / Teams">
+        </div>
+        <div class="full">
+          <label>With (client)</label>
+          <input type="text" name="with_who" id="f_with_who"
+                 list="clientList" placeholder="Type or pick a client name">
+          <input type="hidden" name="pan" id="f_pan">
+          <datalist id="clientList">
+            {% for c in client_options %}
+              <option value="{{ c.name }}" data-pan="{{ c.pan }}">
+            {% endfor %}
+          </datalist>
+        </div>
+        <div class="full">
+          <label>Notes</label>
+          <textarea name="notes" id="f_notes" rows="3" style="resize:vertical;"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="deleteBtn" style="display:none; padding:0.45rem 0.85rem; background:var(--rose); color:#fff; border:none; border-radius:6px; font-family:inherit; font-size:0.78rem; font-weight:600; cursor:pointer;"
+                onclick="deleteMeeting()">Delete</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const events = {
+  {% for week in weeks %}{% for cell in week %}{% for ev in cell.events %}
+    "{{ ev.id }}": {
+      title: {{ ev.title|escapejs|stringformat:'"%s"' }},
+      starts_at: "{{ ev.starts_at }}",
+      ends_at: "{{ ev.ends_at }}",
+      kind: "{{ ev.kind }}",
+      location: {{ ev.location|escapejs|stringformat:'"%s"' }},
+      with_who: {{ ev.with_who|escapejs|stringformat:'"%s"' }},
+      pan: "{{ ev.pan }}",
+      notes: {{ ev.notes|escapejs|stringformat:'"%s"' }},
+    },
+  {% endfor %}{% endfor %}{% endfor %}
+};
+
+function openModal() {
+  document.getElementById('modalTitle').textContent = 'New meeting';
+  document.getElementById('meetingForm').action = "{% url 'clients:calendar_create' %}";
+  document.getElementById('deleteBtn').style.display = 'none';
+  ['f_title','f_with_who','f_pan','f_location','f_notes'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('f_kind').value = 'review';
+  // Default start = next round half-hour
+  const now = new Date();
+  now.setMinutes(now.getMinutes() < 30 ? 30 : 60);
+  now.setSeconds(0); now.setMilliseconds(0);
+  const pad = n => String(n).padStart(2,'0');
+  const local = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  document.getElementById('f_starts_at').value = local;
+  const end = new Date(now.getTime() + 30 * 60000);
+  const localEnd = `${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}`;
+  document.getElementById('f_ends_at').value = localEnd;
+  document.getElementById('meetingModal').classList.add('open');
+}
+
+function openModalWithDate(iso) {
+  openModal();
+  document.getElementById('f_starts_at').value = iso + 'T10:00';
+  document.getElementById('f_ends_at').value = iso + 'T10:30';
+}
+
+function openEditModal(id) {
+  const ev = events[id];
+  if (!ev) return;
+  document.getElementById('modalTitle').textContent = 'Edit meeting';
+  document.getElementById('meetingForm').action = `/clients/calendar/${id}/update/`;
+  document.getElementById('deleteBtn').style.display = '';
+  document.getElementById('deleteBtn').dataset.id = id;
+  document.getElementById('f_title').value = ev.title;
+  document.getElementById('f_starts_at').value = ev.starts_at;
+  document.getElementById('f_ends_at').value = ev.ends_at;
+  document.getElementById('f_kind').value = ev.kind;
+  document.getElementById('f_location').value = ev.location;
+  document.getElementById('f_with_who').value = ev.with_who;
+  document.getElementById('f_pan').value = ev.pan;
+  document.getElementById('f_notes').value = ev.notes;
+  document.getElementById('meetingModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('meetingModal').classList.remove('open');
+}
+
+function deleteMeeting() {
+  const id = document.getElementById('deleteBtn').dataset.id;
+  if (!id || !confirm('Delete this meeting?')) return;
+  const f = document.createElement('form');
+  f.method = 'post';
+  f.action = `/clients/calendar/${id}/delete/`;
+  f.innerHTML = `<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">`;
+  document.body.appendChild(f);
+  f.submit();
+}
+
+// Auto-fill PAN when a client is picked from the datalist
+document.getElementById('f_with_who').addEventListener('input', function() {
+  const opt = document.querySelector(`#clientList option[value="${this.value}"]`);
+  if (opt) document.getElementById('f_pan').value = opt.dataset.pan || '';
+});
+</script>
+{% endblock %}

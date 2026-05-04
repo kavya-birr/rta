@@ -18,8 +18,9 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from openreversefeed.adapters.cams import CamsAdapter
-from openreversefeed.adapters.kfintech import KFintechFormat1Adapter
+from openreversefeed.adapters.registry import default_registry
+import openreversefeed.adapters.cams  # noqa: F401 — trigger registration
+import openreversefeed.adapters.kfintech  # noqa: F401 — trigger registration
 from openreversefeed.core.cleaner import Cleaner
 from openreversefeed.core.models import Registrar
 from openreversefeed.db import models as ofr_models
@@ -39,6 +40,42 @@ _engine = None
 _session_factory = None
 
 
+def _strip_quotes(df: pd.DataFrame) -> pd.DataFrame:
+    """Strip surrounding single-quotes from column names and all string values.
+
+    Some CAMS CSV exports wrap every field in single-quotes, e.g.
+    ``'AMC_CODE'`` instead of ``AMC_CODE`` and ``'B'`` instead of ``B``.
+    """
+    import pandas as pd
+
+    stripped_cols = {c: c.strip("'\" ") for c in df.columns}
+    if any(k != v for k, v in stripped_cols.items()):
+        df = df.rename(columns=stripped_cols)
+        for col in df.columns:
+            if df[col].dtype == object:
+                df[col] = df[col].str.strip("'\" ")
+    return df
+
+
+def _sniff_raw(file_path: Path) -> pd.DataFrame:
+    """Read a feed file into a raw DataFrame for header sniffing and processing."""
+    import pandas as pd
+
+    suffix = file_path.suffix.lower()
+    if suffix in (".xls", ".xlsx"):
+        df = pd.read_excel(file_path, dtype=str)
+    elif suffix == ".csv":
+        df = pd.read_csv(file_path, dtype=str)
+    elif suffix == ".dbf":
+        from dbfread import DBF
+
+        records = [dict(r) for r in DBF(str(file_path), load=True, char_decode_errors="ignore")]
+        df = pd.DataFrame(records, dtype=str)
+    else:
+        raise ValueError(f"unsupported file type: {suffix}")
+    return _strip_quotes(df)
+
+
 def get_session_factory() -> sessionmaker[Session]:
     global _engine, _session_factory
     if _session_factory is None:
@@ -47,7 +84,21 @@ def get_session_factory() -> sessionmaker[Session]:
     return _session_factory
 
 
-def _adapter_for(registrar: str):
+def _adapter_for(registrar: str, headers: set[str] | None = None):
+    """Pick the best adapter for *registrar*.
+
+    If *headers* are provided, the adapter registry auto-detects the format
+    variant (e.g. CAMS CSV vs CAMS DBF, KFintech Format1 vs Format2). When
+    headers are unavailable, we fall back to a safe default per registrar.
+    """
+    if headers:
+        adapter = default_registry.detect(headers)
+        return adapter, adapter.registrar
+
+    # Fallback: use the highest-priority adapter for the registrar
+    from openreversefeed.adapters.cams import CamsAdapter
+    from openreversefeed.adapters.kfintech import KFintechFormat1Adapter
+
     if registrar == "cams":
         return CamsAdapter(), Registrar.CAMS
     if registrar == "kfintech":
@@ -124,8 +175,89 @@ def process_source_file(source_file_id: int) -> dict[str, Any]:
         sf.status = "processing"
         session.commit()
 
-        adapter, registrar = _adapter_for(sf.registrar)
         local_path = Path(sf.storage_uri.removeprefix("file://"))
+
+        # Parse the file to sniff headers, then auto-detect the best
+        # adapter variant for this file's actual columns.
+        raw_sniff = _sniff_raw(local_path)
+        file_headers = set(raw_sniff.columns)
+
+        # Scheme-master file (WBR39A) — no transactions to process, just sync
+        # AMC + Scheme metadata into the DB and exit.
+        from clients.scheme_master import (
+            apply_cams_amc_fallback,
+            consolidate_bad_amcs,
+            consolidate_kfintech_placeholder_amcs,
+            ingest_scheme_master,
+            is_scheme_master,
+        )
+        from clients.cams_scheme_master import (
+            ingest_cams_scheme_master,
+            is_cams_scheme_master,
+        )
+        from clients.wstpr_ingest import ingest_wstpr, is_wstpr_file
+
+        # CAMS R39 — Scheme master (SEBI class, ELSS, ISINs, SIP rules, etc.)
+        if is_cams_scheme_master(file_headers):
+            try:
+                stats = ingest_cams_scheme_master(session, raw_sniff)
+                sf.status = "completed"
+                sf.row_count = stats["rows_in"]
+                sf.meta = {**(sf.meta or {}), "file_type": "cams_scheme_master", **stats}
+                session.commit()
+                return {"source_file_id": sf.id, "stats": stats, "type": "cams_scheme_master"}
+            except Exception as e:  # noqa: BLE001
+                session.rollback()
+                sf.status = "failed"
+                sf.error = f"CAMS scheme master ingest failed: {e}"
+                session.commit()
+                return {"source_file_id": sf.id, "error": sf.error}
+
+        # WSTPR — Systematic plan registrations (SIP / STP / SWP register)
+        if is_wstpr_file(file_headers):
+            try:
+                stats = ingest_wstpr(session, raw_sniff)
+                sf.status = "completed"
+                sf.row_count = stats["rows_in"]
+                sf.meta = {**(sf.meta or {}), "file_type": "wstpr_register", **stats}
+                session.commit()
+                return {"source_file_id": sf.id, "stats": stats, "type": "wstpr_register"}
+            except Exception as e:  # noqa: BLE001
+                session.rollback()
+                sf.status = "failed"
+                sf.error = f"WSTPR ingest failed: {e}"
+                session.commit()
+                return {"source_file_id": sf.id, "error": sf.error}
+
+        if is_scheme_master(file_headers):
+            try:
+                stats = ingest_scheme_master(session, raw_sniff)
+                apply_cams_amc_fallback(session)
+                stats["consolidation"] = consolidate_bad_amcs(session)
+                stats["kfintech_fix"] = consolidate_kfintech_placeholder_amcs(session)
+                sf.status = "completed"
+                sf.row_count = stats["rows_in"]
+                sf.meta = {**(sf.meta or {}), "file_type": "scheme_master", **stats}
+                session.commit()
+                return {"source_file_id": sf.id, "stats": stats, "type": "scheme_master"}
+            except Exception as e:  # noqa: BLE001
+                session.rollback()
+                sf.status = "failed"
+                sf.error = f"Scheme master ingest failed: {e}"
+                session.commit()
+                return {"source_file_id": sf.id, "error": sf.error}
+
+        try:
+            adapter, registrar = _adapter_for(sf.registrar, file_headers)
+        except Exception:
+            sf.status = "failed"
+            sf.error = (
+                f"Unrecognised file format — this does not look like a "
+                f"{sf.registrar.upper()} transaction feed. "
+                f"Headers found: {sorted(file_headers)[:15]}…"
+            )
+            session.commit()
+            return {"source_file_id": sf.id, "error": sf.error}
 
         run = IngestionRun(
             source_file_id=sf.id,
@@ -137,7 +269,7 @@ def process_source_file(source_file_id: int) -> dict[str, Any]:
         session.commit()
 
         try:
-            raw = adapter.parse(local_path)
+            raw = raw_sniff  # reuse the already-parsed DataFrame
             normalized = adapter.normalize(raw)
 
             # Coerce types (same coercions as tools/end_to_end_demo.py)
@@ -164,15 +296,75 @@ def process_source_file(source_file_id: int) -> dict[str, Any]:
             for _, row in cleaned.iterrows():
                 pan = str(row.get("pan") or "").strip().upper()
                 scheme_code = row.get("scheme_code")
+                investor_name = str(row.get("investor_name") or pan)
+                product_code = str(row.get("product_code") or scheme_code or "")
+
+                # --- Auto-create account if missing ---
+                # Look up by (PAN, ownership_type) to avoid creating duplicates
+                # when the same investor shows up across multiple ingest runs.
+                # Accounts table has no DB-level unique constraint on PAN
+                # (family PAN support requires multiple rows), so we enforce
+                # uniqueness at app level by name+ownership match.
                 account = session.execute(
-                    select(Account).where(Account.pan == pan)
-                ).scalar_one_or_none()
+                    select(Account)
+                    .where(Account.pan == pan)
+                    .where(Account.ownership_type == "individual")
+                ).scalars().first()
+                if account is None:
+                    if not pan:
+                        stats["skipped"] += 1
+                        continue
+                    account = Account(
+                        name=investor_name,
+                        pan=pan,
+                        ownership_type="individual",
+                        meta={},
+                    )
+                    session.add(account)
+                    session.flush()
+
+                # --- Auto-create AMC if missing ---
+                amc_code = product_code if product_code else "UNK"
+                amc = session.execute(
+                    select(Amc).where(Amc.code == amc_code)
+                ).scalars().first()
+                if amc is None:
+                    sp_amc = session.begin_nested()
+                    try:
+                        amc = Amc(code=amc_code, name=f"AMC {amc_code}", meta={})
+                        session.add(amc)
+                        session.flush()
+                        sp_amc.commit()
+                    except IntegrityError:
+                        sp_amc.rollback()
+                        amc = session.execute(
+                            select(Amc).where(Amc.code == amc_code)
+                        ).scalars().first()
+
+                # --- Auto-create scheme if missing ---
                 scheme = session.execute(
                     select(Scheme).where(Scheme.scheme_code == scheme_code)
-                ).scalar_one_or_none()
-                if account is None or scheme is None:
-                    stats["skipped"] += 1
-                    continue
+                ).scalars().first()
+                if scheme is None:
+                    if not scheme_code:
+                        stats["skipped"] += 1
+                        continue
+                    sp_sch = session.begin_nested()
+                    try:
+                        scheme = Scheme(
+                            scheme_code=scheme_code,
+                            amc_id=amc.id,
+                            name=scheme_code,
+                            meta={},
+                        )
+                        session.add(scheme)
+                        session.flush()
+                        sp_sch.commit()
+                    except IntegrityError:
+                        sp_sch.rollback()
+                        scheme = session.execute(
+                            select(Scheme).where(Scheme.scheme_code == scheme_code)
+                        ).scalars().first()
 
                 folio_number = str(row["folio_number"])
                 folio = session.execute(
@@ -181,7 +373,7 @@ def process_source_file(source_file_id: int) -> dict[str, Any]:
                         Folio.folio_number == folio_number,
                         Folio.amc_id == scheme.amc_id,
                     )
-                ).scalar_one_or_none()
+                ).scalars().first()
                 if folio is None:
                     folio = Folio(
                         account_id=account.id,

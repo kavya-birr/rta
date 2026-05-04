@@ -1,0 +1,659 @@
+{% extends "base.html" %}
+{% load inr %}
+{% block title %}{{ account.name }} · Clients{% endblock %}
+{% block crumb_leaf %}<a href="{% url 'clients:list' %}" style="color: var(--fg-dim);">Clients</a> / {{ account.name }}{% endblock %}
+
+{% block content %}
+
+<style>
+  /* Section container used throughout this page. */
+  .section-block { margin-bottom: 0.9rem; }
+  .section-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0.2rem 0 0.4rem 0;
+  }
+  .section-title h2 {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg);
+  }
+  .section-title .hint { font-size: 0.7rem; color: var(--muted); }
+
+  .kv-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.55rem 1rem;
+    padding: 0.55rem 0.85rem;
+  }
+  .kv { display: flex; flex-direction: column; gap: 0.1rem; }
+  .kv-label {
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: 600;
+  }
+  .kv-value { font-size: 0.82rem; color: var(--fg); font-weight: 500; }
+  .kv-value.empty { color: var(--fg-dim); font-weight: 400; }
+  .kv-value code { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+
+  .mf-links {
+    display: flex; flex-wrap: wrap; gap: 0.4rem;
+    padding: 0.55rem 0.85rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-1);
+  }
+  .mf-link {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--blue);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    text-decoration: none;
+    display: inline-flex; align-items: center; gap: 0.3rem;
+  }
+  .mf-link:hover { background: var(--blue-bg); }
+  .mf-link.disabled { color: var(--fg-dim); cursor: not-allowed; pointer-events: none; }
+  .mf-link .coming { font-size: 0.62rem; color: var(--muted); }
+</style>
+
+<div class="page-head">
+  <div>
+    <h1>{{ account.name }}</h1>
+    <p>{{ summary.num_holdings }} holding{{ summary.num_holdings|pluralize }} across {{ summary.num_folios }} folio{{ summary.num_folios|pluralize }}.</p>
+  </div>
+  <a href="{% url 'clients:transactions' pan %}" class="btn btn-primary">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    All Transactions
+  </a>
+</div>
+
+<!-- CLIENT TABS -->
+<div class="sub-tabs" role="tablist" aria-label="Client sections" style="margin-bottom: 0.85rem;">
+  <a href="#profile" class="client-tab-link active" data-tab="profile">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    Profile
+  </a>
+  <a href="#portfolio" class="client-tab-link" data-tab="portfolio">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    Mutual Fund Portfolio
+  </a>
+  <a href="#insights" class="client-tab-link" data-tab="insights">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    Insights
+    {% if cached_insights and cached_insights.insight_count %}
+      <span class="badge {% if cached_insights.max_severity == 'high' %}rose{% elif cached_insights.max_severity == 'medium' %}amber{% else %}cyan{% endif %}" style="margin-left:0.25rem;">{{ cached_insights.insight_count }}</span>
+    {% endif %}
+  </a>
+</div>
+
+<!-- ============ TAB 1: PROFILE ============ -->
+<div class="client-tab-panel" data-tab="profile">
+
+<!-- 1. PROFILE -->
+<div class="section-block">
+  <div class="section-title"><h2>Profile</h2></div>
+  <div class="card">
+    <div class="kv-grid">
+      <div class="kv"><div class="kv-label">Client ID</div><div class="kv-value"><code>{{ account.id|stringformat:"s"|slice:":8" }}…</code></div></div>
+      <div class="kv"><div class="kv-label">Name</div><div class="kv-value">{{ account.name }}</div></div>
+      <div class="kv"><div class="kv-label">PAN</div><div class="kv-value"><code>{{ account.pan }}</code></div></div>
+      <div class="kv"><div class="kv-label">DOB</div><div class="kv-value empty">—</div></div>
+      <div class="kv"><div class="kv-label">Email</div><div class="kv-value{% if not account.email %} empty{% endif %}">{{ account.email|default:"—" }}</div></div>
+      <div class="kv"><div class="kv-label">Mobile</div><div class="kv-value{% if not account.phone %} empty{% endif %}">{{ account.phone|default:"—" }}</div></div>
+      <div class="kv">
+        <div class="kv-label">Address</div>
+        <div class="kv-value{% if not account.meta.address %} empty{% endif %}">
+          {% if account.meta.address %}
+            {{ account.meta.address.street }}{% if account.meta.address.city %}, {{ account.meta.address.city }}{% endif %}{% if account.meta.address.state %}, {{ account.meta.address.state }}{% endif %} {{ account.meta.address.pincode }}
+          {% else %}—{% endif %}
+        </div>
+      </div>
+      <div class="kv"><div class="kv-label">Risk Profile</div><div class="kv-value empty">—</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 2. KYC / COMPLIANCE -->
+<div class="section-block">
+  <div class="section-title"><h2>KYC / Compliance</h2><span class="hint">requires master data</span></div>
+  <div class="card">
+    <div class="kv-grid">
+      <div class="kv"><div class="kv-label">KYC Status</div><div class="kv-value empty">—</div></div>
+      <div class="kv"><div class="kv-label">FATCA Status</div><div class="kv-value empty">—</div></div>
+      <div class="kv"><div class="kv-label">CKYC Number</div><div class="kv-value empty">—</div></div>
+      <div class="kv"><div class="kv-label">PAN Verified</div><div class="kv-value empty">—</div></div>
+      <div class="kv"><div class="kv-label">Nominee Status</div><div class="kv-value empty">—</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. FAMILY / RELATIONSHIP MAPPING -->
+<div class="section-block">
+  <div class="section-title"><h2>Family / Relationship Mapping</h2></div>
+  <div class="card">
+    <div class="kv-grid">
+      <div class="kv"><div class="kv-label">Primary Holder</div><div class="kv-value">{{ account.name }}</div></div>
+      <div class="kv"><div class="kv-label">Joint Holders</div><div class="kv-value empty">—</div></div>
+      <div class="kv"><div class="kv-label">Family Members</div><div class="kv-value empty">—</div></div>
+      <div class="kv"><div class="kv-label">Linked Accounts</div><div class="kv-value empty">—</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 4. ACCOUNTS -->
+<div class="section-block">
+  <div class="section-title"><h2>Accounts</h2></div>
+  <div class="card">
+    <div class="kv-grid">
+      <div class="kv">
+        <div class="kv-label">Bank Accounts</div>
+        <div class="kv-value{% if not account.meta.bank_mandates %} empty{% endif %}">
+          {% if account.meta.bank_mandates %}
+            {% for m in account.meta.bank_mandates %}
+              {{ m.bank }}{% if m.account_no %} (••••{{ m.account_no|slice:"-4:" }}){% endif %}{% if not forloop.last %}, {% endif %}
+            {% endfor %}
+          {% else %}—{% endif %}
+        </div>
+      </div>
+      <div class="kv"><div class="kv-label">Demat</div><div class="kv-value empty">—</div></div>
+      <div class="kv">
+        <div class="kv-label">UPI / Mandates</div>
+        <div class="kv-value{% if not account.meta.systematic_plans %} empty{% endif %}">
+          {% if account.meta.systematic_plans %}
+            {{ account.meta.systematic_plans|length }} ECS mandate{{ account.meta.systematic_plans|length|pluralize }}
+          {% else %}—{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Close Tab 1 (Profile) panel #}
+</div>
+
+<!-- ============ TAB 2: MUTUAL FUND PORTFOLIO ============ -->
+<div class="client-tab-panel" data-tab="portfolio" style="display: none;">
+
+<!-- 5a. Portfolio Summary -->
+<div class="section-block">
+  <div class="section-title"><h2>Portfolio Summary</h2></div>
+  <div class="summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.45rem; margin-bottom: 0.4rem;">
+    <div class="summary-card">
+      <div class="sc-label">Total AUM</div>
+      <div class="sc-value">
+        {% if summary.total_current %}₹{{ summary.total_current|inr }}{% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+      </div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Invested Value</div>
+      <div class="sc-value">₹{{ summary.total_invested|inr }}</div>
+    </div>
+    <div class="summary-card emerald {% if summary.total_current %}active{% endif %}">
+      <div class="sc-label">Current Value</div>
+      <div class="sc-value">
+        {% if summary.total_current %}₹{{ summary.total_current|inr }}{% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+      </div>
+    </div>
+    <div class="summary-card {% if summary.total_realized and summary.total_realized > 0 %}emerald{% elif summary.total_realized and summary.total_realized < 0 %}rose{% endif %}">
+      <div class="sc-label">Realized Gain</div>
+      <div class="sc-value">
+        {% if summary.total_realized %}
+          <span style="color: {% if summary.total_realized >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+            {% if summary.total_realized >= 0 %}+{% endif %}₹{{ summary.total_realized|inr }}
+          </span>
+        {% else %}<span style="color: var(--fg-dim);">₹0.00</span>{% endif %}
+      </div>
+    </div>
+    <div class="summary-card {% if summary.total_unrealized and summary.total_unrealized > 0 %}emerald{% elif summary.total_unrealized and summary.total_unrealized < 0 %}rose{% endif %}">
+      <div class="sc-label">Unrealized Gain</div>
+      <div class="sc-value">
+        {% if summary.total_unrealized is not None %}
+          <span style="color: {% if summary.total_unrealized >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+            {% if summary.total_unrealized >= 0 %}+{% endif %}₹{{ summary.total_unrealized|inr }}
+          </span>
+        {% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+      </div>
+    </div>
+    <div class="summary-card {% if summary.total_gain and summary.total_gain > 0 %}emerald{% elif summary.total_gain and summary.total_gain < 0 %}rose{% endif %}">
+      <div class="sc-label">Total Gain / Loss</div>
+      <div class="sc-value">
+        {% if summary.total_gain is not None %}
+          ₹{{ summary.total_gain|inr }}
+          {% if summary.total_gain_pct %}<span style="font-size: 0.72rem; opacity: 0.75;"> ({{ summary.total_gain_pct }}%)</span>{% endif %}
+        {% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+      </div>
+    </div>
+    <div class="summary-card cyan">
+      <div class="sc-label">XIRR</div>
+      <div class="sc-value">
+        {% if summary.xirr_pct is not None %}
+          <span style="color: {% if summary.xirr_pct >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">{{ summary.xirr_pct }}%</span>
+        {% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if summary.allocation %}
+  <div class="card padded" style="margin-top: 0.45rem;">
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+      <h3 style="margin: 0; font-size: 0.66rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase;">
+        Asset Allocation
+        <span style="font-size: 0.62rem; color: var(--fg-dim); font-weight: 400; margin-left: 0.3rem; text-transform: none; letter-spacing: normal;">
+          by {% if summary.allocation_basis == "current_value" %}current market value{% else %}invested amount{% endif %}
+        </span>
+      </h3>
+      <div style="font-size: 0.72rem; color: var(--fg-dim);">
+        Total: <strong>₹{{ summary.allocation_total|inr }}</strong>
+      </div>
+    </div>
+    <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+      {% for a in summary.allocation %}
+      <div style="flex: 1; min-width: 120px; padding: 0.5rem 0.6rem; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-1);">
+        <div style="font-size: 0.62rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600;">{{ a.category }}</div>
+        <div class="num" style="font-size: 0.92rem; font-weight: 700; margin: 0.15rem 0;">₹{{ a.value|inr }}</div>
+        <div style="font-size: 0.7rem; color: var(--blue);">{{ a.pct }}%</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- 5b. Folios -->
+<div class="section-block">
+  <div class="section-title"><h2>Folios</h2><span class="hint">{{ folios|length }} folio{{ folios|length|pluralize }}</span></div>
+  <div class="card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Folio Number</th>
+          <th>AMC</th>
+          <th>Registrar</th>
+          <th>Holding Mode</th>
+          <th>Joint Holders</th>
+          <th>Nominee</th>
+          <th>Linked Bank</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in folios %}
+        <tr>
+          <td><code>{{ f.folio_number }}</code></td>
+          <td>{{ f.amc_name }}</td>
+          <td><span class="tag tag-other">{{ f.amc_code }}</span></td>
+          <td style="color: var(--fg-dim);">—</td>
+          <td style="color: var(--fg-dim);">—</td>
+          <td style="color: var(--fg-dim);">—</td>
+          <td style="color: var(--fg-dim);">—</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align: center; padding: 1rem; color: var(--fg-dim);">No folios.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 5c. Holdings / Schemes -->
+<div class="section-block">
+  <div class="section-title"><h2>Holdings / Schemes</h2><span class="hint">{{ holdings|length }} position{{ holdings|length|pluralize }}</span></div>
+  <div class="card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Scheme</th>
+          <th>Folio</th>
+          <th>Category</th>
+          <th class="num">Units</th>
+          <th class="num">Avg Cost</th>
+          <th class="num">NAV</th>
+          <th class="num">Invested</th>
+          <th class="num">Current Value</th>
+          <th class="num">Realized G/L</th>
+          <th class="num">Unrealized G/L</th>
+          <th class="num">XIRR</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in holdings %}
+        <tr>
+          <td>
+            <a href="{% url 'clients:holding' pan h.scheme_code %}" style="font-weight: 600; color: var(--blue); text-decoration: none;">
+              {{ h.scheme_name|truncatechars:55 }}
+            </a>
+          </td>
+          <td><code style="font-size: 0.72rem;">{{ h.folio_number }}</code></td>
+          <td>
+            {% if h.sebi_category %}
+              <span class="tag tag-other">{{ h.sebi_category }}</span>
+            {% else %}
+              <span class="tag tag-other">{{ h.asset_class }}</span>
+            {% endif %}
+            {% if h.lock_in %}<div style="font-size: 0.6rem; color: var(--amber); margin-top: 0.1rem;">🔒 Lock-in</div>{% endif %}
+          </td>
+          <td class="num">{{ h.units_held|floatformat:3 }}</td>
+          <td class="num">{% if h.avg_cost %}₹{{ h.avg_cost|inr }}{% else %}—{% endif %}</td>
+          <td class="num">
+            {% if h.current_nav %}₹{{ h.current_nav|floatformat:3 }}{% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+          </td>
+          <td class="num">₹{{ h.invested|inr }}</td>
+          <td class="num">
+            {% if h.current_value %}₹{{ h.current_value|inr }}{% elif h.units_held == 0 %}<span style="color: var(--fg-dim);">—</span>{% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+          </td>
+          <td class="num">
+            {% if h.realized_gain %}
+              <span style="color: {% if h.realized_gain >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+                {% if h.realized_gain >= 0 %}+{% endif %}₹{{ h.realized_gain|inr }}
+              </span>
+            {% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+          </td>
+          <td class="num">
+            {% if h.gain_loss is not None and h.units_held > 0 %}
+              <span style="color: {% if h.gain_loss >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+                {% if h.gain_loss >= 0 %}+{% endif %}₹{{ h.gain_loss|inr }}
+                {% if h.gain_loss_pct %}<div style="font-size: 0.6rem; opacity: 0.8; font-family: 'Inter';">{{ h.gain_loss_pct }}%</div>{% endif %}
+              </span>
+            {% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+          </td>
+          <td class="num">
+            {% if h.xirr_pct is not None %}
+              <span style="color: {% if h.xirr_pct >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">{{ h.xirr_pct }}%</span>
+            {% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="11" style="text-align: center; padding: 1rem; color: var(--fg-dim);">No holdings.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="mf-links">
+      <a class="mf-link" href="{% url 'clients:transactions' pan %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px; height:12px;"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>
+        All Transactions
+      </a>
+      <a class="mf-link disabled">Capital Gains <span class="coming">coming soon</span></a>
+      <a class="mf-link disabled">Alerts <span class="coming">coming soon</span></a>
+      <a class="mf-link disabled">Reports <span class="coming">coming soon</span></a>
+    </div>
+  </div>
+</div>
+
+{# Close Tab 2 (Mutual Fund Portfolio) panel #}
+</div>
+
+<!-- ============ TAB 3: INSIGHTS ============ -->
+<div class="client-tab-panel" data-tab="insights" style="display: none;">
+
+<style>
+  .ins-hero {
+    padding: 1rem 1.15rem;
+    background: linear-gradient(135deg, var(--bg-card), var(--bg-1));
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 0.7rem;
+    display: flex; gap: 1rem; flex-wrap: wrap;
+    justify-content: space-between; align-items: center;
+  }
+  .ins-hero .left { display: flex; align-items: center; gap: 0.85rem; }
+  .ins-hero .icon-bubble {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, var(--violet), var(--blue));
+    color: #fff; flex-shrink: 0;
+  }
+  .ins-hero .icon-bubble svg { width: 22px; height: 22px; }
+  .ins-hero h3 { margin: 0; font-size: 1.05rem; font-weight: 700;
+                 letter-spacing: -0.01em; color: var(--fg); }
+  .ins-hero .sub { margin: 0.18rem 0 0 0; font-size: 0.78rem; color: var(--muted-strong); }
+  .ins-hero .right { display: flex; gap: 0.5rem; align-items: center; }
+  .freshness {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.3rem 0.6rem; background: var(--bg-1);
+    border: 1px solid var(--border-strong); border-radius: 999px;
+    font-size: 0.72rem; color: var(--muted-strong);
+  }
+  .freshness::before {
+    content: ''; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--emerald); box-shadow: 0 0 5px var(--emerald);
+  }
+  .ins-summary-strip {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 0.45rem; margin-bottom: 0.7rem;
+  }
+  @media (max-width: 700px) { .ins-summary-strip { grid-template-columns: repeat(2, 1fr); } }
+  .ins-stat {
+    padding: 0.55rem 0.7rem; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: 6px;
+    border-left: 3px solid var(--bg-3);
+  }
+  .ins-stat.high   { border-left-color: var(--rose); }
+  .ins-stat.medium { border-left-color: var(--amber); }
+  .ins-stat.low    { border-left-color: var(--cyan); }
+  .ins-stat.total  { border-left-color: var(--blue); }
+  .ins-stat .lab { font-size: 0.6rem; color: var(--muted); font-weight: 700;
+                    text-transform: uppercase; letter-spacing: 0.07em; }
+  .ins-stat .val { font-family: 'JetBrains Mono', monospace;
+                    font-size: 1.25rem; font-weight: 700; line-height: 1.1;
+                    margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+
+  .ins-card {
+    padding: 0.85rem 1rem; border: 1px solid var(--border);
+    border-radius: 7px; margin-bottom: 0.5rem; background: var(--bg-card);
+    border-left: 3px solid var(--blue);
+  }
+  .ins-card.high   { border-left-color: var(--rose);
+                      background: linear-gradient(90deg, var(--rose-bg) 0%, var(--bg-card) 30%); }
+  .ins-card.medium { border-left-color: var(--amber);
+                      background: linear-gradient(90deg, var(--amber-bg) 0%, var(--bg-card) 30%); }
+  .ins-card.low    { border-left-color: var(--cyan); }
+  .ins-card .row1 { display: flex; justify-content: space-between;
+                     align-items: flex-start; gap: 0.5rem; flex-wrap: wrap; }
+  .ins-card .title { font-size: 0.92rem; font-weight: 600; color: var(--fg);
+                      line-height: 1.4; flex: 1; }
+  .ins-card .sev { font-size: 0.6rem; font-weight: 700;
+                    padding: 0.15rem 0.55rem; border-radius: 999px;
+                    text-transform: uppercase; letter-spacing: 0.05em;
+                    flex-shrink: 0; }
+  .ins-card .sev.high   { background: var(--rose-bg);   color: var(--rose); }
+  .ins-card .sev.medium { background: var(--amber-bg);  color: var(--amber); }
+  .ins-card .sev.low    { background: var(--cyan-bg);   color: var(--cyan); }
+  .ins-card .detail { margin-top: 0.5rem; font-size: 0.83rem;
+                       color: var(--fg-dim); line-height: 1.55; }
+  .ins-card .action {
+    margin-top: 0.55rem; padding: 0.55rem 0.7rem;
+    background: var(--bg-1); border-radius: 5px;
+    font-size: 0.8rem; color: var(--fg);
+    display: flex; gap: 0.45rem; align-items: flex-start;
+    border: 1px dashed var(--border-strong);
+  }
+  .ins-card .action::before { content: '💡'; font-size: 0.95rem; flex-shrink: 0; }
+
+  .empty-state-card {
+    padding: 2.2rem 1rem;
+    text-align: center;
+    background: var(--bg-card);
+    border: 1px dashed var(--border-strong);
+    border-radius: 8px;
+  }
+  .empty-state-card .icon-circle {
+    width: 56px; height: 56px; margin: 0 auto 0.85rem;
+    border-radius: 50%; background: var(--blue-bg);
+    color: var(--blue);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .empty-state-card .icon-circle svg { width: 26px; height: 26px; }
+  .empty-state-card h4 { margin: 0 0 0.35rem 0; font-size: 1rem;
+                          font-weight: 700; color: var(--fg); }
+  .empty-state-card p  { margin: 0 auto 1rem; max-width: 420px;
+                          font-size: 0.85rem; color: var(--muted-strong);
+                          line-height: 1.5; }
+
+  .clean-card {
+    padding: 1.6rem 1rem; text-align: center;
+    background: var(--emerald-bg);
+    border: 1px solid rgba(5,150,105,0.25);
+    border-radius: 8px;
+  }
+  .clean-card .icon-circle {
+    width: 50px; height: 50px; margin: 0 auto 0.6rem;
+    border-radius: 50%; background: #fff;
+    color: var(--emerald);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .clean-card .icon-circle svg { width: 26px; height: 26px; }
+  .clean-card h4 { margin: 0 0 0.3rem 0; font-size: 0.95rem;
+                    font-weight: 700; color: var(--emerald); }
+  .clean-card p { margin: 0; font-size: 0.8rem; color: var(--fg-dim); }
+
+  .rules-link-bar {
+    margin-top: 0.7rem; padding: 0.6rem 0.85rem;
+    background: var(--bg-1); border: 1px solid var(--border);
+    border-radius: 5px; font-size: 0.74rem; color: var(--fg-dim);
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 0.4rem;
+  }
+  .rules-link-bar a { color: var(--blue); font-weight: 600;
+                       text-decoration: none; }
+  .rules-link-bar a:hover { text-decoration: underline; }
+</style>
+
+<div class="ins-hero">
+  <div class="left">
+    <div class="icon-bubble">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    </div>
+    <div>
+      <h3>Insights for {{ account.name }}</h3>
+      <p class="sub">Rule-based analysis of this client's portfolio. Generate on demand to keep things fast.</p>
+    </div>
+  </div>
+  <div class="right">
+    {% if cached_insights %}
+      <span class="freshness">Generated {{ insight_freshness }}</span>
+      <form method="post" action="{% url 'clients:research_generate' pan %}" style="display:inline;">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'clients:detail' pan %}?tab=insights">
+        <button type="submit" class="btn btn-ghost btn-sm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Regenerate
+        </button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if cached_insights %}
+  {# Summary strip — only meaningful when insights exist or we want to show 0 #}
+  <div class="ins-summary-strip">
+    <div class="ins-stat total">
+      <div class="lab">Total flags</div>
+      <div class="val">{{ cached_insights.insight_count }}</div>
+    </div>
+    <div class="ins-stat high">
+      <div class="lab">High</div>
+      <div class="val" style="color: var(--rose);">{{ insight_sev_counts.high }}</div>
+    </div>
+    <div class="ins-stat medium">
+      <div class="lab">Medium</div>
+      <div class="val" style="color: var(--amber);">{{ insight_sev_counts.medium }}</div>
+    </div>
+    <div class="ins-stat low">
+      <div class="lab">Low</div>
+      <div class="val" style="color: var(--cyan);">{{ insight_sev_counts.low }}</div>
+    </div>
+  </div>
+
+  {% if cached_insights.insights %}
+    {% for ins in cached_insights.insights %}
+      <div class="ins-card {{ ins.severity }}">
+        <div class="row1">
+          <div class="title">{{ ins.title }}</div>
+          <span class="sev {{ ins.severity }}">{{ ins.severity }}</span>
+        </div>
+        <div class="detail">{{ ins.detail }}</div>
+        <div class="action">{{ ins.action }}</div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="clean-card">
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h4>All clear — portfolio passes every rule</h4>
+      <p>No concentration, missing-class, underperformance, tax-loss, or category-lag flags for this client.</p>
+    </div>
+  {% endif %}
+{% else %}
+  <div class="empty-state-card">
+    <div class="icon-circle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    </div>
+    <h4>No insights generated yet</h4>
+    <p>Generate insights to run the rule engine on this client's portfolio. Takes about a second; the result is cached so subsequent visits are instant.</p>
+    <form method="post" action="{% url 'clients:research_generate' pan %}" style="display:inline;">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'clients:detail' pan %}?tab=insights">
+      <button type="submit" class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Generate insights
+      </button>
+    </form>
+  </div>
+{% endif %}
+
+<div class="rules-link-bar">
+  <span>
+    <strong style="color:var(--fg);">Rule-based analysis:</strong>
+    Concentration, missing asset class, underperforming holdings, tax-loss harvesting candidates, category laggards.
+  </span>
+  <a href="{% url 'clients:research_rules' %}">⚙ Edit rules →</a>
+</div>
+
+</div>
+{# Close Tab 3 (Insights) panel #}
+
+<script>
+(function() {
+  const tabs = document.querySelectorAll('.client-tab-link');
+  const panels = document.querySelectorAll('.client-tab-panel');
+  const KEY = 'orf.clientDetailTab';
+
+  function activate(name) {
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    panels.forEach(p => { p.style.display = (p.dataset.tab === name) ? '' : 'none'; });
+    try { localStorage.setItem(KEY, name); } catch (e) {}
+    if (history.replaceState) history.replaceState(null, '', '#' + name);
+  }
+
+  // Initial tab: server-passed (from ?tab= redirect) > URL hash > localStorage > default 'profile'
+  const valid = ['profile', 'portfolio', 'insights'];
+  const fromServer = "{{ requested_tab|escapejs }}";
+  const params = new URLSearchParams(location.search);
+  const fromQuery = params.get('tab') || '';
+  const hash = (location.hash || '').replace('#', '');
+  const stored = (function() { try { return localStorage.getItem(KEY); } catch (e) { return null; } })();
+  let initial = 'profile';
+  if (valid.includes(fromServer))     initial = fromServer;
+  else if (valid.includes(fromQuery)) initial = fromQuery;
+  else if (valid.includes(hash))      initial = hash;
+  else if (valid.includes(stored))    initial = stored;
+  activate(initial);
+
+  tabs.forEach(t => {
+    t.addEventListener('click', (e) => {
+      e.preventDefault();
+      activate(t.dataset.tab);
+    });
+  });
+})();
+</script>
+
+{% endblock %}

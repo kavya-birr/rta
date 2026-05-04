@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% load inr %}
+{% block title %}Clients · openreversefeed{% endblock %}
+{% block crumb_leaf %}Clients{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>Clients</h1>
+    <p>{{ total_clients }} investor{{ total_clients|pluralize }} ingested from registrar feeds.</p>
+  </div>
+</div>
+
+<div class="card padded" style="margin-bottom: 1rem;">
+  <form method="get" style="display: flex; gap: 0.5rem; align-items: center;">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search by name or PAN…"
+           style="flex: 1; padding: 0.55rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; font: inherit;">
+    <button type="submit" class="btn btn-primary">Search</button>
+    {% if q %}<a href="{% url 'clients:list' %}" class="btn btn-ghost">Clear</a>{% endif %}
+  </form>
+</div>
+
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Investor</th>
+        <th>PAN</th>
+        <th>Type</th>
+        <th style="text-align: right;">Folios</th>
+        <th style="text-align: right;">Schemes</th>
+        <th style="text-align: right;">Txns</th>
+        <th style="text-align: right;">Invested</th>
+        <th style="text-align: right;">Current AUM</th>
+        <th style="text-align: right;">Realized G/L</th>
+        <th style="text-align: right;">Unrealized G/L</th>
+        <th style="text-align: right;">Total P&amp;L</th>
+        <th>Activity</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in clients %}
+      <tr>
+        <td>
+          <a href="{% url 'clients:detail' c.pan %}" style="font-weight: 600; color: var(--blue);">
+            {{ c.name }}
+          </a>
+        </td>
+        <td><code style="font-size: 0.72rem;">{{ c.pan }}</code></td>
+        <td>{{ c.ownership }}</td>
+        <td class="num">{{ c.folios }}</td>
+        <td class="num">{{ c.schemes }}</td>
+        <td class="num">{{ c.txn_count }}</td>
+        <td class="num">₹{{ c.invested|inr }}</td>
+        <td class="num">
+          {% if c.current_aum %}
+            ₹{{ c.current_aum|inr }}
+            {% if c.aum_coverage_pct and c.aum_coverage_pct < 100 %}
+              <div style="font-size: 0.62rem; color: var(--muted); font-family: 'Inter';">{{ c.aum_coverage_pct }}% priced</div>
+            {% endif %}
+          {% else %}
+            <span style="color: var(--fg-dim);">—</span>
+          {% endif %}
+        </td>
+        <td class="num">
+          {% if c.realized %}
+            <span style="color: {% if c.realized >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+              {% if c.realized >= 0 %}+{% else %}−{% endif %}₹{{ c.realized|inr_abs }}
+            </span>
+          {% else %}
+            <span style="color: var(--fg-dim);">₹0.00</span>
+          {% endif %}
+        </td>
+        <td class="num">
+          {% if c.unrealized is not None %}
+            <span style="color: {% if c.unrealized >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+              {% if c.unrealized >= 0 %}+{% else %}−{% endif %}₹{{ c.unrealized|inr_abs }}
+            </span>
+          {% else %}
+            <span style="color: var(--fg-dim);">—</span>
+          {% endif %}
+        </td>
+        <td class="num">
+          {% if c.pnl is not None %}
+            <span style="color: {% if c.pnl >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+              {% if c.pnl >= 0 %}+{% else %}−{% endif %}₹{{ c.pnl|inr_abs }}
+              {% if c.pnl_pct %}<div style="font-size: 0.62rem; font-family: 'Inter'; opacity: 0.8;">{{ c.pnl_pct }}%</div>{% endif %}
+            </span>
+          {% else %}
+            <span style="color: var(--fg-dim);">—</span>
+          {% endif %}
+        </td>
+        <td style="color: var(--fg-dim); font-size: 0.72rem;">
+          {% if c.first_txn %}{{ c.first_txn|date:"M ’y" }} → {{ c.last_txn|date:"M ’y" }}{% else %}—{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="12" style="text-align: center; padding: 2rem; color: var(--fg-dim);">No clients yet — upload a feed file to get started.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

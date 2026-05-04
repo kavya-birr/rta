@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load inr %}
+{% block title %}Transactions · {{ account.name }}{% endblock %}
+{% block crumb_leaf %}
+  <a href="{% url 'clients:list' %}" style="color: var(--fg-dim);">Clients</a> /
+  <a href="{% url 'clients:detail' pan %}" style="color: var(--fg-dim);">{{ account.name }}</a> /
+  All Transactions
+{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>All Transactions — {{ account.name }}</h1>
+    <p>
+      Showing {{ filtered_count }} of {{ total_count }} transactions.
+      Every transaction is tagged with its type (purchase / redemption / switch / reversal).
+    </p>
+  </div>
+  <a href="{% url 'clients:detail' pan %}" class="btn btn-ghost">← Back to client</a>
+</div>
+
+<!-- FILTERS -->
+<div class="card padded" style="margin-bottom: 1rem;">
+  <form method="get" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+    <input type="text" name="q" value="{{ search }}" placeholder="Search by scheme / folio / reference…"
+           style="flex: 1; min-width: 200px; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; font: inherit;">
+    <button type="submit" class="btn btn-primary">Filter</button>
+    {% if search or tag_filter != "all" or action_filter != "all" %}
+      <a href="{% url 'clients:transactions' pan %}" class="btn btn-ghost">Clear</a>
+    {% endif %}
+  </form>
+
+  <div style="margin-top: 0.75rem; display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;">
+    <span style="font-size: 0.75rem; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.5px;">By tag:</span>
+    <a href="?tag=all{% if action_filter != 'all' %}&action={{ action_filter }}{% endif %}"
+       class="chip-mini {% if tag_filter == 'all' %}active{% endif %}">All ({{ total_count }})</a>
+    {% for tag, cnt in tag_counts %}
+    <a href="?tag={{ tag }}{% if action_filter != 'all' %}&action={{ action_filter }}{% endif %}"
+       class="chip-mini {% if tag_filter == tag %}active{% endif %}">
+      {{ tag }} ({{ cnt }})
+    </a>
+    {% endfor %}
+  </div>
+
+  <div style="margin-top: 0.5rem; display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;">
+    <span style="font-size: 0.75rem; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.5px;">By action:</span>
+    <a href="?action=all{% if tag_filter != 'all' %}&tag={{ tag_filter }}{% endif %}"
+       class="chip-mini {% if action_filter == 'all' %}active{% endif %}">All</a>
+    {% for action, cnt in action_counts %}
+    <a href="?action={{ action }}{% if tag_filter != 'all' %}&tag={{ tag_filter }}{% endif %}"
+       class="chip-mini {% if action_filter == action %}active{% endif %}">
+      {{ action }} ({{ cnt }})
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- TRANSACTIONS TABLE -->
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Scheme</th>
+        <th>Folio</th>
+        <th>Action</th>
+        <th>Tag</th>
+        <th style="text-align: right;">NAV</th>
+        <th style="text-align: right;">Units</th>
+        <th style="text-align: right;">Amount</th>
+        <th>Reference</th>
+        <th>Source</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in transactions %}
+      <tr>
+        <td>{{ t.date|date:"Y-m-d" }}</td>
+        <td>
+          <a href="{% url 'clients:holding' pan t.scheme_code %}" style="color: var(--blue);">
+            {{ t.scheme_name|truncatechars:35 }}
+          </a>
+          <div style="font-size: 0.7rem; color: var(--fg-dim);"><code>{{ t.scheme_code }}</code></div>
+        </td>
+        <td><code style="font-size: 0.8rem;">{{ t.folio_number }}</code></td>
+        <td>
+          <span class="tag tag-{% if t.action == 'buy' %}purchase{% elif t.action == 'sell' %}redemption{% else %}other{% endif %}">
+            {{ t.action }}
+          </span>
+        </td>
+        <td>
+          <span class="tag tag-{{ t.tag|default:'other' }}">{{ t.tag|default:"—" }}</span>
+        </td>
+        <td style="text-align: right; font-variant-numeric: tabular-nums;">
+          {% if t.nav %}₹{{ t.nav|floatformat:3 }}{% else %}—{% endif %}
+        </td>
+        <td style="text-align: right; font-variant-numeric: tabular-nums;">
+          <span style="color: {% if t.action == 'buy' %}var(--emerald){% elif t.action == 'sell' %}var(--rose){% endif %};">
+            {% if t.action == 'buy' %}+{% elif t.action == 'sell' %}−{% endif %}{{ t.units|floatformat:3 }}
+          </span>
+        </td>
+        <td style="text-align: right; font-variant-numeric: tabular-nums;">₹{{ t.amount|inr}}</td>
+        <td><code style="font-size: 0.7rem;">{{ t.reference|truncatechars:22 }}</code></td>
+        <td style="font-size: 0.7rem; color: var(--fg-dim);">{{ t.source_file|truncatechars:22 }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="10" style="text-align: center; padding: 1.5rem; color: var(--fg-dim);">No transactions match the filter.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

@@ -24,7 +24,7 @@ def resolve_kfintech_conflicts(df: pd.DataFrame) -> pd.DataFrame:
 
     kept_indices: list = []
     for _key, group in df.groupby(
-        ["transaction_number", "folio_number"], sort=False
+        ["transaction_number", "folio_number"], sort=False, dropna=False
     ):
         purreds = set(group["transaction_purred"])
         has_sin = any(

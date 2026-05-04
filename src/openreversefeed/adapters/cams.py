@@ -1,4 +1,4 @@
-"""CAMS_FORMAT1 adapter. See spec §5 step 3."""
+"""CAMS adapters — CSV and DBF variants sharing a common base. See spec §5 step 3."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,7 +10,11 @@ from openreversefeed.adapters.base import AggregationStrategy, FeedAdapter, Pair
 from openreversefeed.adapters.registry import default_registry
 from openreversefeed.core.models import Action, Registrar
 
-_FIELD_MAP: dict[str, str] = {
+# ---------------------------------------------------------------------------
+# Field maps
+# ---------------------------------------------------------------------------
+
+_CSV_FIELD_MAP: dict[str, str] = {
     "USRTRXNO": "transaction_id",
     "FOLIO_NO": "folio_number",
     "PRODCODE": "product_code",
@@ -25,12 +29,30 @@ _FIELD_MAP: dict[str, str] = {
     "BROKCODE": "broker_code",
     "PANNO": "pan",
     "INVNAME": "investor_name",
-    # CAMS ships an "REINVEST_F" column that encodes whether the dividend
-    # option on the scheme is a reinvestment or a payout. We capture the
-    # raw flag so validators / downstream can check it against the scheme
-    # master's plan_type.
     "REINVEST_F": "dividend_option_flag",
 }
+
+_DBF_FIELD_MAP: dict[str, str] = {
+    "USRTRXNO": "transaction_id",
+    "FOLIO_NO": "folio_number",
+    "PRODCODE": "scheme_code",  # DBF uses PRODCODE as the scheme code
+    "UNITS": "units",
+    "AMOUNT": "amount",
+    "TRADDATE": "transaction_date",
+    "TRXNMODE": "transaction_mode",
+    "TRXNTYPE": "transaction_type",
+    "TRXNNO": "transaction_number",
+    "PURPRICE": "nav",
+    "BROKCODE": "broker_code",
+    "PAN": "pan",
+    "INV_NAME": "investor_name",
+    "REINVEST_F": "dividend_option_flag",
+    "AMC_CODE": "product_code",
+}
+
+# ---------------------------------------------------------------------------
+# Shared constants
+# ---------------------------------------------------------------------------
 
 # Mapping from the raw CAMS REINVEST_F flag to the canonical plan_type
 # vocabulary the scheme master stores. 'Y' means reinvest, 'N' means
@@ -66,18 +88,17 @@ _TYPE_TO_TAG = {
     "D": "dividend",
     "DP": "dividend_payout",
     "BON": "bonus",
-    # NFO (New Fund Offer): initial subscription to a new scheme during the
-    # offer period. Classified as a purchase in the ledger — the investor is
-    # acquiring units at the NFO price (usually ₹10) and the outcome is a
-    # buy position just like a regular purchase.
     "NFO": "new_fund_offer",
 }
 
 # CAMS transaction types we actively refuse. TICOB / TOCOB are the
 # "close of business" variants of transfer in/out and the source system
-# rejects them at validation time. If you have a registrar that ships real
-# COB data you want to process, subclass CamsAdapter and clear this set.
+# rejects them at validation time.
 _REJECTED_TYPES = {"TICOB", "TOCOB"}
+
+# ---------------------------------------------------------------------------
+# Strategies (shared by all CAMS variants)
+# ---------------------------------------------------------------------------
 
 
 class _CamsPairStrategy(PairRemovalStrategy):
@@ -94,39 +115,45 @@ class _CamsAggregation(AggregationStrategy):
         return aggregate_cams_switches(df)
 
 
-class CamsAdapter(FeedAdapter):
-    name = "cams"
+# ---------------------------------------------------------------------------
+# Base class — shared parse, normalize, classify, composite_key
+# ---------------------------------------------------------------------------
+
+
+class _CamsBase(FeedAdapter):
     registrar = Registrar.CAMS
-    priority = 100
-    mandatory_headers = {
-        "USRTRXNO",
-        "FOLIO_NO",
-        "PRODCODE",
-        "SCHEME_CODE",
-        "UNITS",
-        "AMOUNT",
-        "TRADDATE",
-        "TRXNMODE",
-        "TRXNTYPE",
-    }
-    discriminator_headers: set[str] = set()
-    field_map = _FIELD_MAP
     type_flip_map = _TYPE_FLIP_MAP
     rejected_types = _REJECTED_TYPES
+
+    @staticmethod
+    def _strip_quotes(df: pd.DataFrame) -> pd.DataFrame:
+        """Strip surrounding quotes from column names and values.
+
+        Some CAMS CSV exports wrap every field in single-quotes.
+        """
+        stripped_cols = {c: c.strip("'\" ") for c in df.columns}
+        if any(k != v for k, v in stripped_cols.items()):
+            df = df.rename(columns=stripped_cols)
+            for col in df.columns:
+                if df[col].dtype == object:
+                    df[col] = df[col].str.strip("'\" ")
+        return df
 
     def parse(self, file_path: str | Path) -> pd.DataFrame:
         path = Path(file_path)
         suffix = path.suffix.lower()
         if suffix in (".xls", ".xlsx"):
-            return pd.read_excel(path, dtype=str)
-        if suffix == ".csv":
-            return pd.read_csv(path, dtype=str)
-        if suffix == ".dbf":
+            df = pd.read_excel(path, dtype=str)
+        elif suffix == ".csv":
+            df = pd.read_csv(path, dtype=str)
+        elif suffix == ".dbf":
             from dbfread import DBF
 
             records = [dict(r) for r in DBF(str(path), load=True, char_decode_errors="ignore")]
-            return pd.DataFrame(records, dtype=str)
-        raise ValueError(f"unsupported file type for CAMS: {suffix}")
+            df = pd.DataFrame(records, dtype=str)
+        else:
+            raise ValueError(f"unsupported file type for CAMS: {suffix}")
+        return self._strip_quotes(df)
 
     def normalize(self, raw: pd.DataFrame) -> pd.DataFrame:
         canonical_cols = {src: dst for src, dst in self.field_map.items() if src in raw.columns}
@@ -140,8 +167,7 @@ class CamsAdapter(FeedAdapter):
             df["__source_meta"] = [{}] * len(df)
 
         # Translate the CAMS REINVEST_F flag into the canonical plan_type
-        # vocabulary the scheme master uses. Leaves None where the feed
-        # is silent so the validator can skip the check cleanly.
+        # vocabulary the scheme master uses.
         if "dividend_option_flag" in df.columns:
             df["plan_type_from_feed"] = (
                 df["dividend_option_flag"]
@@ -200,4 +226,51 @@ class CamsAdapter(FeedAdapter):
         )
 
 
+# ---------------------------------------------------------------------------
+# Concrete adapters
+# ---------------------------------------------------------------------------
+
+
+class CamsAdapter(_CamsBase):
+    """CAMS CSV / XLS format with SCHEME_CODE + TRNSERIALNO columns."""
+
+    name = "cams"
+    priority = 100
+    mandatory_headers = {
+        "USRTRXNO",
+        "FOLIO_NO",
+        "PRODCODE",
+        "SCHEME_CODE",
+        "UNITS",
+        "AMOUNT",
+        "TRADDATE",
+        "TRXNMODE",
+        "TRXNTYPE",
+    }
+    discriminator_headers: set[str] = set()
+    field_map = _CSV_FIELD_MAP
+
+
+class CamsDbfAdapter(_CamsBase):
+    """CAMS DBF format — uses TRXNNO, PURPRICE, PAN, INV_NAME instead of
+    their CSV counterparts, and PRODCODE doubles as the scheme code."""
+
+    name = "cams_dbf"
+    priority = 95
+    mandatory_headers = {
+        "USRTRXNO",
+        "FOLIO_NO",
+        "PRODCODE",
+        "TRXNNO",
+        "UNITS",
+        "AMOUNT",
+        "TRADDATE",
+        "TRXNMODE",
+        "TRXNTYPE",
+    }
+    discriminator_headers = {"PURPRICE", "PAN"}
+    field_map = _DBF_FIELD_MAP
+
+
 default_registry.register(CamsAdapter)
+default_registry.register(CamsDbfAdapter)

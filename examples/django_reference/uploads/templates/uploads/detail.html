@@ -89,7 +89,21 @@
   </table>
 </div>
 
-<h2 class="section">Transactions <span class="count">{{ txns|length }}</span></h2>
+<h2 class="section">
+  Transactions <span class="count">{{ total_txns }}</span>
+  {% if total_txns > shown_txns %}
+    <span style="font-size: 0.7rem; color: var(--muted); text-transform: none; letter-spacing: 0; font-weight: 500;">
+      showing {{ shown_txns }} of {{ total_txns }}
+      · <a href="?sort={{ sort_dir }}&size=5000" style="color: var(--blue);">show all</a>
+    </span>
+  {% endif %}
+  <span style="margin-left: auto; font-size: 0.7rem; text-transform: none; letter-spacing: 0; font-weight: 500;">
+    sort:
+    <a href="?sort=desc&size={{ page_size }}" style="color: {% if sort_dir == 'desc' %}var(--blue){% else %}var(--muted){% endif %};">newest</a>
+    ·
+    <a href="?sort=asc&size={{ page_size }}" style="color: {% if sort_dir == 'asc' %}var(--blue){% else %}var(--muted){% endif %};">oldest</a>
+  </span>
+</h2>
 <div class="card">
   <table>
     <thead>

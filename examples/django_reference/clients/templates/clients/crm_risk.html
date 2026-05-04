@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% load inr %}
+{% block title %}Risk Profile · {{ lead.name }}{% endblock %}
+{% block crumb_root %}<a href="{% url 'clients:crm' %}">CRM</a> / <a href="{% url 'clients:crm_detail' lead.id %}">{{ lead.name }}</a>{% endblock %}
+{% block crumb_leaf %}Risk Profile{% endblock %}
+
+{% block content %}
+<style>
+  .rp-head {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    flex-wrap: wrap; gap: 1rem; margin-bottom: 0.85rem;
+  }
+  .rp-head h1 { margin: 0 0 0.2rem 0; font-size: 1.4rem; font-weight: 700;
+                letter-spacing: -0.02em; }
+  .rp-head .sub { color: var(--muted-strong); font-size: 0.78rem; }
+
+  .rp-panel {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1.05rem 1.2rem; margin-bottom: 0.7rem;
+    box-shadow: var(--shadow-xs);
+  }
+  .rp-panel h3 { margin: 0 0 0.55rem 0; font-size: 0.92rem; font-weight: 700;
+                  color: var(--fg); }
+
+  /* ─── Question card ─── */
+  .q-card { margin-bottom: 1.05rem; }
+  .q-card .q-num {
+    display: inline-block; padding: 0.18rem 0.55rem;
+    background: var(--blue-bg); color: var(--blue);
+    border-radius: 999px; font-size: 0.65rem; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    margin-bottom: 0.4rem;
+  }
+  .q-card .q-text {
+    font-size: 0.92rem; font-weight: 600; color: var(--fg);
+    margin-bottom: 0.55rem;
+  }
+  .q-opts { display: grid; gap: 0.3rem; }
+  .q-opt {
+    display: flex; align-items: center; gap: 0.65rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg-card); cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+    font-size: 0.85rem; color: var(--fg);
+  }
+  .q-opt:hover { border-color: var(--border-strong); background: var(--bg-1); }
+  .q-opt input { accent-color: var(--blue); transform: scale(1.05); }
+  .q-opt input:checked ~ span.lab { font-weight: 600; color: var(--blue); }
+  .q-opt:has(input:checked) {
+    border-color: var(--blue);
+    background: var(--blue-bg);
+  }
+  .q-opt .lab { flex: 1; }
+  .q-opt .pts {
+    font-size: 0.65rem; font-weight: 700; color: var(--muted);
+    background: var(--bg-2); padding: 0.1rem 0.45rem;
+    border-radius: 999px; font-variant-numeric: tabular-nums;
+  }
+
+  .submit-row { display: flex; justify-content: flex-end; gap: 0.5rem;
+                margin-top: 0.4rem; }
+
+  /* ─── Result panel ─── */
+  .result-hero {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem;
+    margin-bottom: 0.7rem;
+  }
+  @media (max-width: 800px) { .result-hero { grid-template-columns: 1fr; } }
+  .result-card {
+    padding: 1.1rem 1.3rem; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: 8px;
+    position: relative; overflow: hidden;
+  }
+  .result-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  }
+  .result-card.blue::before    { background: var(--blue); }
+  .result-card.cyan::before    { background: var(--cyan); }
+  .result-card.violet::before  { background: var(--violet); }
+  .result-card.amber::before   { background: var(--amber); }
+  .result-card.rose::before    { background: var(--rose); }
+
+  .result-card .lab {
+    font-size: 0.65rem; color: var(--muted); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.07em;
+  }
+  .result-card .cat-name {
+    font-size: 1.55rem; font-weight: 700; letter-spacing: -0.02em;
+    margin: 0.25rem 0 0.5rem 0;
+  }
+  .result-card.blue    .cat-name { color: var(--blue); }
+  .result-card.cyan    .cat-name { color: var(--cyan); }
+  .result-card.violet  .cat-name { color: var(--violet); }
+  .result-card.amber   .cat-name { color: var(--amber); }
+  .result-card.rose    .cat-name { color: var(--rose); }
+  .result-card .blurb { font-size: 0.85rem; color: var(--fg-dim);
+                        line-height: 1.5; }
+
+  .score-card {
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 1.1rem 1.3rem; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: 8px;
+  }
+  .score-card .score-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 2.6rem; font-weight: 700; line-height: 1;
+    letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+  }
+  .score-card .score-num .max { color: var(--muted-strong);
+                                 font-size: 1.5rem; font-weight: 500; }
+  .score-bar { height: 8px; background: var(--bg-2); border-radius: 999px;
+               overflow: hidden; margin-top: 0.7rem; }
+  .score-bar > span { display: block; height: 100%; border-radius: 999px;
+                       background: linear-gradient(90deg, var(--blue) 0%,
+                         var(--cyan) 25%, var(--violet) 50%,
+                         var(--amber) 75%, var(--rose) 100%); }
+  .score-bands {
+    display: flex; justify-content: space-between;
+    font-size: 0.62rem; color: var(--muted); margin-top: 0.3rem;
+  }
+
+  .alloc-line {
+    margin-top: 0.85rem; padding: 0.7rem 0.9rem;
+    background: var(--bg-1); border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    font-size: 0.82rem; color: var(--fg-dim);
+  }
+  .alloc-line strong { color: var(--fg); font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+
+  /* Response detail table */
+  .resp-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+  .resp-table th { text-align: left; padding: 0.45rem 0.6rem;
+                   font-size: 0.62rem; text-transform: uppercase;
+                   letter-spacing: 0.07em; color: var(--muted);
+                   border-bottom: 1px solid var(--border); background: var(--bg-1); }
+  .resp-table td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); }
+  .resp-table td.score-cell {
+    text-align: right; font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums; font-weight: 700;
+  }
+  .resp-table tr:last-child td { border-bottom: none; }
+</style>
+
+<div class="rp-head">
+  <div>
+    <h1>Risk Profile Assessment</h1>
+    <div class="sub">For <strong>{{ lead.name }}</strong>{% if lead.pan %} · <span style="font-family:'JetBrains Mono',monospace;">{{ lead.pan }}</span>{% endif %}</div>
+  </div>
+  <a href="{% url 'clients:crm_detail' lead.id %}" class="btn btn-ghost btn-sm">← Back to lead</a>
+</div>
+
+{% if result %}
+  <!-- ───────── SAVED RESULT VIEW ───────── -->
+  <div class="result-hero">
+    <div class="result-card {{ result.color }}">
+      <div class="lab">Risk Profile</div>
+      <div class="cat-name">{{ result.category }}</div>
+      <div class="blurb">{{ result.blurb }}</div>
+      <div class="alloc-line">
+        <span style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);font-weight:700;">Suggested Allocation</span><br>
+        <strong>{{ result.allocation }}</strong>
+      </div>
+    </div>
+
+    <div class="score-card">
+      <div class="lab" style="font-size:0.65rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.07em;">Score</div>
+      <div class="score-num">{{ result.score }}<span class="max"> / {{ result.max_score }}</span></div>
+      <div class="score-bar">
+        <span style="width: {% widthratio result.score result.max_score 100 %}%; background: var(--{{ result.color }});"></span>
+      </div>
+      <div class="score-bands">
+        <span>Conservative</span><span>Moderate</span><span>Aggressive</span>
+      </div>
+      <div style="margin-top:0.75rem;font-size:0.72rem;color:var(--muted);">
+        Completed {{ result.completed_at|slice:":16"|cut:"T" }}
+      </div>
+    </div>
+  </div>
+
+  <div class="rp-panel">
+    <h3>Response detail</h3>
+    <table class="resp-table">
+      <thead>
+        <tr><th>#</th><th>Question</th><th>Answer</th><th class="score-cell">Score</th></tr>
+      </thead>
+      <tbody>
+      {% for r in result.responses %}
+        <tr>
+          <td style="width:30px;color:var(--muted);">{{ forloop.counter }}</td>
+          <td style="color:var(--fg-dim);">{{ r.question }}</td>
+          <td style="color:var(--fg);font-weight:500;">{{ r.answer_label|default:"—" }}</td>
+          <td class="score-cell">{{ r.score }}/5</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <form method="post" action="{% url 'clients:crm_risk' lead.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="reset">
+    <button type="submit" class="btn btn-ghost btn-sm"
+            onclick="return confirm('Clear the saved profile so this can be retaken?')">
+      Retake assessment
+    </button>
+  </form>
+
+{% else %}
+  <!-- ───────── ASSESSMENT FORM ───────── -->
+  <div class="rp-panel" style="background: var(--blue-bg); border-color: rgba(37,99,235,0.25);">
+    <h3 style="margin:0 0 0.4rem 0;color: var(--blue);">How this works</h3>
+    <p style="margin:0;font-size:0.85rem;color:var(--fg-dim);line-height:1.55;">
+      Six questions, each scored 1–5. The total score (6–30) places the
+      client into one of five risk buckets — Conservative, Moderately
+      Conservative, Moderate, Moderately Aggressive, Aggressive — which
+      drives the suggested asset allocation. The result is stored on the
+      lead and the onboarding journey advances automatically.
+    </p>
+  </div>
+
+  <form method="post" action="{% url 'clients:crm_risk' lead.id %}">
+    {% csrf_token %}
+    {% for q in questions %}
+      <div class="rp-panel q-card">
+        <div class="q-num">Question {{ forloop.counter }} of {{ questions|length }}</div>
+        <div class="q-text">{{ q.q }}</div>
+        <div class="q-opts">
+          {% for opt_label, opt_score in q.opts %}
+            <label class="q-opt">
+              <input type="radio" name="{{ q.key }}" value="{{ opt_score }}" required
+                     {% if answers|get_item:q.key == opt_score %}checked{% endif %}>
+              <span class="lab">{{ opt_label }}</span>
+              <span class="pts">{{ opt_score }} pt{{ opt_score|pluralize }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+
+    <div class="submit-row">
+      <a href="{% url 'clients:crm_detail' lead.id %}" class="btn btn-ghost">Cancel</a>
+      <button type="submit" class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Submit assessment
+      </button>
+    </div>
+  </form>
+{% endif %}
+
+{% endblock %}

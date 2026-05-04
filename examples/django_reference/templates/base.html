@@ -7,6 +7,19 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>
+    // Apply the theme BEFORE first paint to avoid a white-flash for dark-mode
+    // users. Reads the user's saved preference, falling back to the OS-level
+    // prefers-color-scheme media query on first visit.
+    (function() {
+      try {
+        var saved = localStorage.getItem('orf.theme');
+        var sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var theme = saved || (sys ? 'dark' : 'light');
+        if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (e) { /* localStorage may be blocked — fail silently */ }
+    })();
+  </script>
   <style>
     :root {
       /* Surfaces — light theme */
@@ -55,7 +68,136 @@
       --shadow-lg: 0 20px 40px -12px rgba(15, 23, 42, 0.15), 0 8px 16px -8px rgba(15, 23, 42, 0.08);
 
       /* Layout */
-      --sidebar-w: 248px;
+      --sidebar-w: 240px;
+      --sidebar-w-collapsed: 56px;
+    }
+
+    /* ============ Dark theme ============ */
+    /* Activated by setting data-theme="dark" on <html>. The toggle in the
+       sidebar footer + a head-script (early-applied) drive this. Every
+       component on the platform reads CSS variables, so swapping these here
+       re-themes the entire UI without touching component-level CSS. */
+    [data-theme="dark"] {
+      /* GitHub Dark inspired — layered, calm, fintech-appropriate.
+         No pure black, no neon. Layers separated by subtle contrast only. */
+
+      /* Backgrounds — three-layer system */
+      --bg-0: #0d1117;          /* background.base — page */
+      --bg-1: #161b22;          /* background.surface — cards / panels */
+      --bg-2: #21262d;          /* background.hover — interactive surfaces */
+      --bg-3: #2d333b;          /* heavier separators / inset blocks */
+      --bg-card: #161b22;       /* card surface */
+      --bg-card-hover: #21262d;
+      --bg-sidebar: #0d1117;    /* sidebar = base (no extra contrast) */
+
+      /* Text — dimmed grays (GitHub "Dark Dimmed" tones) for less eye-strain */
+      --fg: #adbac7;            /* text.primary — softer than the canonical #c9d1d9 */
+      --fg-dim: #768390;        /* text.secondary */
+      --muted: #545d68;         /* text.muted */
+      --muted-strong: #768390;
+
+      /* Accents — calm semantic palette (GitHub Dark style) */
+      --blue: #58a6ff;          /* accent.primary — links, primary actions */
+      --blue-soft: #388bfd;
+      --blue-bg: rgba(88, 166, 255, 0.15);
+      --blue-glow: rgba(88, 166, 255, 0.30);
+
+      --indigo: #79c0ff;        /* secondary blue */
+      --violet: #a371f7;        /* additional series / decorative */
+
+      --emerald: #3fb950;       /* accent.success — profit */
+      --emerald-soft: #2ea043;
+      --emerald-bg: rgba(63, 185, 80, 0.15);
+
+      --amber: #d29922;         /* accent.warning */
+      --amber-soft: #bf8700;
+      --amber-bg: rgba(210, 153, 34, 0.15);
+
+      --rose: #e0726c;          /* accent.danger — loss (softened to match green's perceived weight) */
+      --rose-soft: #c4554d;
+      --rose-bg: rgba(224, 114, 108, 0.13);
+
+      --cyan: #39c5cf;          /* additional series */
+      --cyan-soft: #2bb3bf;
+      --cyan-bg: rgba(57, 197, 207, 0.15);
+
+      /* Borders — subtle, GitHub-style (low-contrast) */
+      --border: #21262d;        /* border.subtle — row separators */
+      --border-strong: #30363d; /* border.default — component edges */
+
+      /* Shadows — restrained, just enough to hint at elevation */
+      --shadow-xs: 0 0 transparent;
+      --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.30);
+      --shadow-md: 0 3px 6px rgba(0, 0, 0, 0.40);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.48);
+    }
+
+    /* Hardcoded #fff backgrounds that exist in component-level templates
+       (modals, autocomplete dropdowns) need an override so they respect
+       the theme. Catching these here keeps the per-template styles untouched. */
+    [data-theme="dark"] .modal-card,
+    [data-theme="dark"] .ftsearch-dropdown {
+      background: var(--bg-card);
+      color: var(--fg);
+      border-color: var(--border-strong);
+    }
+    [data-theme="dark"] .ftsearch-result:hover,
+    [data-theme="dark"] .ftsearch-result.kbd-active { background: var(--bg-card-hover); }
+    [data-theme="dark"] .modal-card input,
+    [data-theme="dark"] .modal-card textarea,
+    [data-theme="dark"] .modal-card select {
+      background: var(--bg-1); color: var(--fg);
+    }
+    [data-theme="dark"] .brand .wordmark { color: var(--fg); }
+    [data-theme="dark"] .brand .wordmark .sub { color: var(--muted); }
+
+    /* Tag chips (.tag-purchase etc.) ship with hardcoded dark text colors that
+       don't render on dark mode. Re-route them to the bright accent vars. */
+    [data-theme="dark"] .tag-purchase,
+    [data-theme="dark"] .tag-dividend            { color: var(--emerald); }
+    [data-theme="dark"] .tag-redemption,
+    [data-theme="dark"] .tag-dividend_payout     { color: var(--amber); }
+    [data-theme="dark"] .tag-switch_in,
+    [data-theme="dark"] .tag-transfer_in         { color: var(--cyan); }
+    [data-theme="dark"] .tag-switch_out,
+    [data-theme="dark"] .tag-transfer_out        { color: var(--violet); background: rgba(192,132,252,0.16); }
+    [data-theme="dark"] .tag-reversal            { color: var(--rose); }
+
+    /* Provider chips (cams/kfintech) hardcode dark text — bright on dark. */
+    [data-theme="dark"] .provider-cams     { color: var(--cyan); }
+    [data-theme="dark"] .provider-kfintech { color: var(--amber); }
+
+    /* Message banners (.msg.success/.warning/.error) hardcode dark text. */
+    [data-theme="dark"] .msg.success { color: var(--emerald); }
+    [data-theme="dark"] .msg.warning { color: var(--amber); }
+    [data-theme="dark"] .msg.error   { color: var(--rose); }
+
+    /* Chart line strokes — calmer green/grey for fintech feel */
+    [data-theme="dark"] .chart-line {
+      stroke: #3fb950;
+      filter: none;     /* drop the glow — too flashy for the new system */
+    }
+    [data-theme="dark"] .chart-hover-dot { fill: #3fb950; stroke: var(--bg-card); }
+    [data-theme="dark"] .chart-bench-line { stroke: #8b949e; opacity: 0.85; }
+    [data-theme="dark"] .chart-svg {
+      background: linear-gradient(180deg, var(--bg-card), var(--bg-0));
+    }
+    [data-theme="dark"] .chart-tooltip {
+      fill: #161b22;
+      stroke: #30363d;
+    }
+
+    [data-theme="dark"] .ftsearch-wrap {
+      background: linear-gradient(180deg, var(--bg-1), var(--bg-card));
+    }
+
+    /* Smooth theme transition (skip on first paint to avoid flash) */
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.18s ease, border-color 0.18s ease,
+                  color 0.18s ease, box-shadow 0.18s ease !important;
     }
 
     * { box-sizing: border-box; }
@@ -65,17 +207,15 @@
       padding: 0;
       min-height: 100%;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
+      font-size: 14px;       /* base — every rem-sized component scales from here */
+      line-height: 1.45;
       color: var(--fg);
       background: var(--bg-0);
-      background-image:
-        radial-gradient(ellipse 1000px 500px at 100% 0%, rgba(37, 99, 235, 0.04), transparent 60%),
-        radial-gradient(ellipse 700px 400px at 0% 100%, rgba(16, 185, 129, 0.03), transparent 60%);
-      background-attachment: fixed;
       -webkit-font-smoothing: antialiased;
       font-feature-settings: 'ss01', 'cv11', 'tnum';
     }
+    /* Bloomberg-style: tabular numbers everywhere for numeric columns. */
+    .num, td.num, .font-mono { font-family: 'JetBrains Mono', 'SF Mono', monospace; font-variant-numeric: tabular-nums; }
 
     a { color: inherit; text-decoration: none; }
 
@@ -84,6 +224,10 @@
       display: grid;
       grid-template-columns: var(--sidebar-w) 1fr;
       min-height: 100vh;
+      transition: grid-template-columns 0.2s ease;
+    }
+    .layout.sidebar-collapsed {
+      grid-template-columns: var(--sidebar-w-collapsed) 1fr;
     }
 
     aside.sidebar {
@@ -93,24 +237,56 @@
       height: 100vh;
       background: var(--bg-sidebar);
       border-right: 1px solid var(--border);
-      padding: 1.25rem 0.85rem 1.5rem 0.85rem;
+      padding: 0.85rem 0.6rem 0.85rem 0.6rem;
       display: flex;
       flex-direction: column;
       overflow-y: auto;
-      box-shadow: 1px 0 0 rgba(15, 23, 42, 0.02);
+      overflow-x: hidden;
+      transition: width 0.2s ease;
     }
+    .sidebar-collapsed aside.sidebar { width: var(--sidebar-w-collapsed); padding: 0.85rem 0.35rem; }
+    .sidebar-collapsed .brand .wordmark,
+    .sidebar-collapsed .nav-label,
+    .sidebar-collapsed .nav-section,
+    .sidebar-collapsed .sidebar-footer,
+    .sidebar-collapsed .nav-badge,
+    .sidebar-collapsed .nav-caret { display: none; }
+    .sidebar-collapsed nav.sidebar-nav a { justify-content: center; padding: 0.5rem 0.4rem; }
+    .sidebar-collapsed .brand { justify-content: center; padding: 0.2rem; }
+
+    .sidebar-toggle {
+      position: absolute;
+      top: 0.85rem;
+      right: 0.45rem;
+      width: 22px;
+      height: 22px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--bg-card);
+      color: var(--muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+      transition: background 0.15s, color 0.15s;
+    }
+    .sidebar-toggle:hover { background: var(--bg-1); color: var(--fg); }
+    .sidebar-toggle svg { width: 13px; height: 13px; }
+    .sidebar-collapsed .sidebar-toggle { position: static; margin: 0.5rem auto 0.75rem; }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 0.7rem;
-      padding: 0.4rem 0.6rem 1.25rem 0.6rem;
-      margin-bottom: 0.75rem;
+      gap: 0.55rem;
+      padding: 0.25rem 0.4rem 0.75rem 0.4rem;
+      margin-bottom: 0.45rem;
       border-bottom: 1px solid var(--border);
+      position: relative;
     }
     .brand .logo {
-      width: 36px;
-      height: 36px;
+      width: 30px;
+      height: 30px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -135,22 +311,30 @@
     }
 
     .nav-section {
-      margin-top: 1.1rem;
-      padding: 0 0.65rem 0.4rem 0.65rem;
-      font-size: 0.66rem;
+      margin-top: 0.7rem;
+      padding: 0 0.55rem 0.3rem 0.55rem;
+      font-size: 0.64rem;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.09em;
       color: var(--muted);
       font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
     }
-    nav.sidebar-nav { display: flex; flex-direction: column; gap: 0.15rem; }
+    .nav-section.collapsible { cursor: pointer; user-select: none; }
+    .nav-section.collapsible:hover { color: var(--fg); }
+    .nav-section .chev { width: 10px; height: 10px; transition: transform 0.15s; }
+    .nav-section.collapsed .chev { transform: rotate(-90deg); }
+    .nav-section.collapsed + nav.sidebar-nav { display: none; }
+    nav.sidebar-nav { display: flex; flex-direction: column; gap: 0.1rem; }
     nav.sidebar-nav a {
       display: flex;
       align-items: center;
-      gap: 0.7rem;
-      padding: 0.55rem 0.7rem;
-      border-radius: 7px;
-      font-size: 0.86rem;
+      gap: 0.55rem;
+      padding: 0.4rem 0.6rem;
+      border-radius: 5px;
+      font-size: 0.82rem;
       font-weight: 500;
       color: var(--muted-strong);
       transition: background 0.15s, color 0.15s;
@@ -163,8 +347,8 @@
       box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.15);
     }
     nav.sidebar-nav a svg {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       opacity: 0.7;
       flex-shrink: 0;
     }
@@ -226,19 +410,58 @@
       box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
     }
 
+    /* ============ Theme toggle ============ */
+    .theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      width: 100%;
+      padding: 0.45rem 0.6rem;
+      margin-top: 0.55rem;
+      background: var(--bg-1);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      color: var(--fg-dim);
+      font-family: inherit;
+      font-size: 0.74rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .theme-toggle:hover {
+      background: var(--bg-card);
+      color: var(--fg);
+      border-color: rgba(15, 23, 42, 0.2);
+    }
+    [data-theme="dark"] .theme-toggle:hover { border-color: rgba(255, 255, 255, 0.2); }
+    .theme-toggle svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .theme-toggle .tt-label { flex: 1; text-align: left; }
+    /* Light mode: show MOON icon (clicking → dark). Dark mode: show SUN. */
+    .theme-toggle .tt-icon-moon { display: inline-flex; }
+    .theme-toggle .tt-icon-sun  { display: none; }
+    [data-theme="dark"] .theme-toggle .tt-icon-moon { display: none; }
+    [data-theme="dark"] .theme-toggle .tt-icon-sun  { display: inline-flex; }
+    .theme-toggle .tt-label-sun  { display: none; }
+    .theme-toggle .tt-label-moon { display: inline; }
+    [data-theme="dark"] .theme-toggle .tt-label-sun  { display: inline; }
+    [data-theme="dark"] .theme-toggle .tt-label-moon { display: none; }
+    /* When sidebar collapsed, show only the icon */
+    .sidebar-collapsed .theme-toggle { padding: 0.45rem 0.4rem; justify-content: center; }
+    .sidebar-collapsed .theme-toggle .tt-label { display: none; }
+
     /* ============ Main ============ */
     main {
       grid-column: 2;
-      padding: 1.75rem 2.25rem 5rem 2.25rem;
-      max-width: 1400px;
+      padding: 0.9rem 1.5rem 2.5rem 1.5rem;
+      max-width: 1600px;
     }
 
     .topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-bottom: 1.25rem;
-      margin-bottom: 1.75rem;
+      padding-bottom: 0.5rem;
+      margin-bottom: 0.85rem;
       border-bottom: 1px solid var(--border);
     }
     .topbar .breadcrumb {
@@ -272,8 +495,55 @@
       box-shadow: 0 0 8px currentColor;
     }
 
+    /* ============ Sub-tabs (nested tabs under a sidebar section) ============ */
+    .sub-tabs {
+      display: flex;
+      gap: 0;
+      margin: -0.25rem 0 0.9rem 0;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .sub-tabs::-webkit-scrollbar { display: none; }
+    .sub-tabs a {
+      position: relative;
+      padding: 0.5rem 0.95rem 0.55rem 0.95rem;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--muted-strong);
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      white-space: nowrap;
+      transition: color 0.12s, border-color 0.12s, background 0.12s;
+    }
+    .sub-tabs a:hover { color: var(--fg); background: var(--bg-1); }
+    .sub-tabs a.active {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+      font-weight: 600;
+    }
+    .sub-tabs a svg { width: 14px; height: 14px; opacity: 0.75; }
+    .sub-tabs a.active svg { opacity: 1; color: var(--blue); }
+    .sub-tabs a .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 16px;
+      height: 15px;
+      padding: 0 0.3rem;
+      font-size: 0.62rem;
+      font-weight: 700;
+      border-radius: 999px;
+      font-variant-numeric: tabular-nums;
+    }
+    .sub-tabs a .badge.amber { background: var(--amber-bg); color: var(--amber); }
+    .sub-tabs a .badge.rose  { background: var(--rose-bg);  color: var(--rose); }
+
     .page-head {
-      margin-bottom: 1.75rem;
+      margin-bottom: 0.8rem;
       display: flex;
       align-items: flex-end;
       justify-content: space-between;
@@ -281,29 +551,29 @@
       flex-wrap: wrap;
     }
     .page-head h1 {
-      margin: 0 0 0.3rem 0;
-      font-size: 1.75rem;
+      margin: 0 0 0.15rem 0;
+      font-size: 1.35rem;
       font-weight: 700;
-      letter-spacing: -0.025em;
+      letter-spacing: -0.02em;
       color: var(--fg);
     }
     .page-head p {
       margin: 0;
       color: var(--muted-strong);
-      font-size: 0.88rem;
+      font-size: 0.78rem;
     }
-    .page-head .actions { display: flex; gap: 0.55rem; }
+    .page-head .actions { display: flex; gap: 0.5rem; }
 
-    h2.section {
-      margin: 2.2rem 0 1rem 0;
-      font-size: 0.72rem;
+    h2.section, h2.section-head {
+      margin: 1rem 0 0.45rem 0;
+      font-size: 0.68rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.11em;
+      letter-spacing: 0.1em;
       color: var(--fg-dim);
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.5rem;
     }
     h2.section::after {
       content: '';
@@ -325,31 +595,31 @@
     .card {
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 6px;
       padding: 0;
-      margin-bottom: 1rem;
+      margin-bottom: 0.55rem;
       overflow: hidden;
-      box-shadow: var(--shadow-sm);
+      box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
     }
-    .card.padded { padding: 1.25rem 1.4rem; }
+    .card.padded { padding: 0.65rem 0.85rem; }
     .card > table { margin: 0; }
 
     /* ============ Stat cards ============ */
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1rem;
-      margin-bottom: 2rem;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.55rem;
+      margin-bottom: 0.85rem;
     }
     .stat {
       position: relative;
-      padding: 1.4rem 1.45rem 1.6rem 1.45rem;
+      padding: 0.8rem 0.85rem;
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 6px;
       overflow: hidden;
-      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-      box-shadow: var(--shadow-sm);
+      transition: border-color 0.15s;
+      box-shadow: 0 1px 1px rgba(15, 23, 42, 0.02);
     }
     .stat:hover {
       border-color: var(--border-strong);
@@ -476,26 +746,28 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.86rem;
+      font-size: 0.8rem;
     }
     thead th {
       text-align: left;
-      padding: 0.8rem 1rem;
-      font-size: 0.68rem;
+      padding: 0.4rem 0.7rem;
+      font-size: 0.62rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.07em;
       color: var(--muted);
       border-bottom: 1px solid var(--border);
       background: var(--bg-1);
       user-select: none;
+      white-space: nowrap;
     }
     tbody td {
-      padding: 0.85rem 1rem;
+      padding: 0.38rem 0.7rem;
       border-bottom: 1px solid var(--border);
       color: var(--fg);
       vertical-align: middle;
     }
+    tbody tr { line-height: 1.3; }
     tbody tr:nth-child(even) td { background: rgba(15, 23, 42, 0.015); }
     tbody tr:last-child td { border-bottom: none; }
     tbody tr { transition: background 0.12s; }
@@ -875,28 +1147,26 @@
     .status-summary {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
-      gap: 0.7rem;
-      margin-bottom: 1.25rem;
+      gap: 0.45rem;
+      margin-bottom: 0.65rem;
     }
     .summary-card {
       display: flex;
       flex-direction: column;
-      gap: 0.3rem;
-      padding: 0.9rem 1rem;
+      gap: 0.15rem;
+      padding: 0.55rem 0.7rem;
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      box-shadow: var(--shadow-xs);
+      border-radius: 5px;
+      box-shadow: none;
       text-decoration: none;
       color: var(--fg);
-      transition: transform 0.12s, box-shadow 0.15s, border-color 0.12s;
+      transition: border-color 0.12s;
       position: relative;
       overflow: hidden;
     }
     .summary-card:hover {
-      transform: translateY(-1px);
       border-color: var(--border-strong);
-      box-shadow: var(--shadow-sm);
     }
     .summary-card::before {
       content: '';
@@ -919,16 +1189,17 @@
     .summary-card.cyan.active     { border-color: var(--cyan);    background: var(--cyan-bg); }
     .summary-card.emerald.active  { border-color: var(--emerald); background: var(--emerald-bg); }
     .summary-card.rose.active     { border-color: var(--rose);    background: var(--rose-bg); }
-    .sc-num {
-      font-size: 1.6rem;
+    .sc-num, .sc-value {
+      font-size: 1.15rem;
       font-weight: 700;
       color: var(--fg);
-      line-height: 1;
+      line-height: 1.1;
+      font-family: 'JetBrains Mono', 'SF Mono', monospace;
       font-variant-numeric: tabular-nums;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.01em;
     }
     .sc-label {
-      font-size: 0.73rem;
+      font-size: 0.63rem;
       color: var(--muted-strong);
       font-weight: 600;
       text-transform: uppercase;
@@ -1010,7 +1281,7 @@
   </style>
 </head>
 <body>
-  <div class="layout">
+  <div class="layout" id="appLayout">
     <aside class="sidebar">
       <div class="brand">
         <span class="logo">
@@ -1024,40 +1295,69 @@
         </span>
       </div>
 
-      <div class="nav-section">Data</div>
+      <button class="sidebar-toggle" id="sidebarToggle" title="Collapse sidebar">
+        <svg id="sidebarToggleIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+
+      <div class="nav-section">Advisor</div>
       <nav class="sidebar-nav">
-        <a href="{% url 'dashboard:home' %}" class="{% if active == 'overview' %}active{% endif %}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-          Overview
+        <a href="{% url 'clients:arn' %}" class="{% if active == 'arn' %}active{% endif %}" title="Book Overview">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+          <span class="nav-label">Book Overview</span>
         </a>
-        <a href="{% url 'uploads:list' %}" class="{% if active == 'files' %}active{% endif %}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          Feed Files
-          {% if nav_counts.files_pending %}<span class="nav-badge amber">{{ nav_counts.files_pending }}</span>{% endif %}
-          {% if nav_counts.files_failed %}<span class="nav-badge rose">{{ nav_counts.files_failed }}</span>{% endif %}
+        <a href="{% url 'clients:list' %}" class="{% if active == 'clients' %}active{% endif %}" title="Clients">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span class="nav-label">Clients</span>
         </a>
-        <a href="{% url 'corrections:list' %}" class="{% if active == 'exceptions' %}active{% endif %}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          Exceptions
-          {% if nav_counts.exceptions_pending %}<span class="nav-badge amber">{{ nav_counts.exceptions_pending }}</span>{% endif %}
+        <a href="{% url 'clients:crm' %}" class="{% if active == 'crm' %}active{% endif %}" title="CRM">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <span class="nav-label">CRM</span>
+        </a>
+        <a href="{% url 'clients:calendar' %}" class="{% if active == 'calendar' %}active{% endif %}" title="Calendar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span class="nav-label">Calendar</span>
+        </a>
+        <a href="{% url 'clients:yield' %}" class="{% if active == 'yield' %}active{% endif %}" title="Yield Optimizer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          <span class="nav-label">Yield Optimizer</span>
+        </a>
+        <a href="{% url 'clients:research' %}" class="{% if active == 'research' %}active{% endif %}" title="Research">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          <span class="nav-label">Research</span>
         </a>
       </nav>
 
-      <div class="nav-section">Actions</div>
+      <div class="nav-section">Workspace</div>
       <nav class="sidebar-nav">
-        <a href="{% url 'uploads:new' %}" class="{% if active == 'ingest' %}active{% endif %}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Ingest File
+        <a href="{% url 'dashboard:home' %}" class="{% if active == 'overview' or active == 'files' or active == 'exceptions' or active == 'ingest' %}active{% endif %}" title="Data Management">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          <span class="nav-label">Data Management</span>
+          {% if nav_counts.files_pending %}<span class="nav-badge amber">{{ nav_counts.files_pending }}</span>{% endif %}
+          {% if nav_counts.files_failed %}<span class="nav-badge rose">{{ nav_counts.files_failed }}</span>{% endif %}
+          {% if nav_counts.exceptions_pending %}<span class="nav-badge amber">{{ nav_counts.exceptions_pending }}</span>{% endif %}
+        </a>
+        <a href="{% url 'clients:research_rules' %}" class="{% if active == 'research_rules' %}active{% endif %}" title="Research Rules">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span class="nav-label">Research Rules</span>
         </a>
       </nav>
 
       <div class="sidebar-footer">
         <div><strong>openreversefeed</strong> v0.1.0</div>
         <div style="margin-top: 0.3rem;">Apache-2.0 · Alpha</div>
-        <div style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.3rem;">
-          <kbd>⌘</kbd><kbd>K</kbd>
-          <span style="color: var(--muted); font-size: 0.72rem; margin-left: 0.15rem;">for search</span>
-        </div>
+        <button class="theme-toggle" id="themeToggle" type="button"
+                title="Toggle dark / light mode">
+          <span class="tt-icon-sun">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          </span>
+          <span class="tt-icon-moon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </span>
+          <span class="tt-label">
+            <span class="tt-label-sun">Switch to light</span>
+            <span class="tt-label-moon">Switch to dark</span>
+          </span>
+        </button>
       </div>
     </aside>
 
@@ -1071,6 +1371,30 @@
         <div class="env-chip">local dev</div>
       </div>
 
+      {% if active == 'overview' or active == 'files' or active == 'exceptions' or active == 'ingest' %}
+      <div class="sub-tabs" role="tablist" aria-label="Data Management">
+        <a href="{% url 'dashboard:home' %}" class="{% if active == 'overview' %}active{% endif %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+          Overview
+        </a>
+        <a href="{% url 'uploads:list' %}" class="{% if active == 'files' %}active{% endif %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Feed Files
+          {% if nav_counts.files_pending %}<span class="badge amber">{{ nav_counts.files_pending }}</span>{% endif %}
+          {% if nav_counts.files_failed %}<span class="badge rose">{{ nav_counts.files_failed }}</span>{% endif %}
+        </a>
+        <a href="{% url 'corrections:list' %}" class="{% if active == 'exceptions' %}active{% endif %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Exceptions
+          {% if nav_counts.exceptions_pending %}<span class="badge amber">{{ nav_counts.exceptions_pending }}</span>{% endif %}
+        </a>
+        <a href="{% url 'uploads:new' %}" class="{% if active == 'ingest' %}active{% endif %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Ingest File
+        </a>
+      </div>
+      {% endif %}
+
       {% if messages %}
         <div class="messages">
           {% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
@@ -1082,6 +1406,54 @@
   </div>
 
   <script>
+  // ─────────── Theme toggle (persisted) ───────────
+  (function() {
+    const btn = document.getElementById('themeToggle');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      // Add transition class on first interaction so the swap animates
+      // smoothly. We don't add it on initial load because that would also
+      // animate the page-load colour-fill, which looks janky.
+      document.documentElement.classList.add('theme-transition');
+      const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      const next = cur === 'dark' ? 'light' : 'dark';
+      if (next === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+      try { localStorage.setItem('orf.theme', next); } catch (e) {}
+    });
+  })();
+
+  // ─────────── Sidebar collapse (persisted) ───────────
+  (function() {
+    const layout = document.getElementById('appLayout');
+    const toggle = document.getElementById('sidebarToggle');
+    const icon = document.getElementById('sidebarToggleIcon');
+    const KEY = 'orf.sidebarCollapsed';
+
+    function applyState(collapsed) {
+      layout.classList.toggle('sidebar-collapsed', collapsed);
+      if (icon) {
+        // chevron points right when collapsed (click to expand), left when expanded
+        icon.innerHTML = collapsed
+          ? '<polyline points="9 18 15 12 9 6"/>'
+          : '<polyline points="15 18 9 12 15 6"/>';
+      }
+      toggle.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    }
+
+    const initial = localStorage.getItem(KEY) === '1';
+    applyState(initial);
+
+    toggle.addEventListener('click', () => {
+      const now = !layout.classList.contains('sidebar-collapsed');
+      applyState(now);
+      localStorage.setItem(KEY, now ? '1' : '0');
+    });
+  })();
+
   // ─────────── Keyboard shortcuts ───────────
   // / — focus search
   // g u — go to Feed Files

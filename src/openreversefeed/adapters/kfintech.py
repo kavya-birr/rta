@@ -75,6 +75,29 @@ _CSV_FIELD_MAP = {
     "Broker Code": "broker_code",
 }
 
+# WBTRN CSV variant — the KFintech "reverse feed" export with slightly
+# different column names from the standard CSV layout.
+_WBTRN_FIELD_MAP = {
+    "Inward Number": "transaction_id",
+    "Transaction Number": "transaction_number",
+    "Switch_Ref. No.": "parent_transaction_number",
+    "Folio Number": "folio_number",
+    "Product Code": "product_code",
+    "Scheme Code": "scheme_code",
+    "Units": "units",
+    "Amount": "amount",
+    "Nav": "nav",
+    "Transaction Date": "transaction_date",
+    "Transaction Mode": "transaction_mode",
+    "Transaction Head": "transaction_purred",
+    "Transaction Flag": "transaction_flag",
+    "Transaction Type": "transaction_type",
+    "PAN1": "pan",
+    "Investor Name": "investor_name",
+    "Agent Code": "broker_code",
+    "Dividend Option": "dividend_option_flag",
+}
+
 _TYPE_FLIP_MAP = {"P": "R", "R": "P", "D": "DP", "DP": "D"}
 
 _PURRED_TO_ACTION = {
@@ -95,6 +118,12 @@ _FLAG_TO_ACTION = {
 }
 
 
+# KFintech transaction types that represent pre-rejections — orders that
+# were rejected before execution. These have zero NAV and zero amount and
+# must be dropped so they don't inflate positions.
+_KFINTECH_REJECTED_TYPES = {"FULD", "NEWD", "SIND"}
+
+
 class _KFintechPairStrategy(PairRemovalStrategy):
     def remove(self, df: pd.DataFrame) -> pd.DataFrame:
         from openreversefeed.core.pair_removal import remove_kfintech_pairs
@@ -112,6 +141,7 @@ class _KFintechAggregation(AggregationStrategy):
 class _KFintechBase(FeedAdapter):
     registrar = Registrar.KFINTECH
     type_flip_map = _TYPE_FLIP_MAP
+    rejected_types = _KFINTECH_REJECTED_TYPES
 
     def _normalize_with_map(self, raw: pd.DataFrame, fmap: dict[str, str]) -> pd.DataFrame:
         canonical_cols = {src: dst for src, dst in fmap.items() if src in raw.columns}
@@ -237,6 +267,25 @@ class KFintechCsvAdapter(_KFintechBase):
         return self._normalize_with_map(raw, _CSV_FIELD_MAP)
 
 
+class KFintechWbtrnAdapter(_KFintechBase):
+    """KFintech WBTRN CSV format — the reverse feed export with column names
+    like ``Nav`` (not ``NAV``), ``PAN1`` (not ``PAN``), ``Transaction Head``
+    (not ``Transaction Purred``), ``Agent Code`` (not ``Broker Code``)."""
+
+    name = "kfintech_wbtrn"
+    priority = 65
+    mandatory_headers = {"Inward Number", "Folio Number", "Units", "Nav", "Transaction Head"}
+    discriminator_headers = {"PAN1", "Agent Code"}
+    field_map = _WBTRN_FIELD_MAP
+
+    def parse(self, file_path: str | Path) -> pd.DataFrame:
+        return pd.read_csv(Path(file_path), dtype=str)
+
+    def normalize(self, raw: pd.DataFrame) -> pd.DataFrame:
+        return self._normalize_with_map(raw, _WBTRN_FIELD_MAP)
+
+
 default_registry.register(KFintechFormat1Adapter)
 default_registry.register(KFintechFormat2Adapter)
 default_registry.register(KFintechCsvAdapter)
+default_registry.register(KFintechWbtrnAdapter)

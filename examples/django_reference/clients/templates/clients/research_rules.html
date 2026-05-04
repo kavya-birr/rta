@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Research Rules · openreversefeed{% endblock %}
+{% block crumb_root %}Workspace{% endblock %}
+{% block crumb_leaf %}Research Rules{% endblock %}
+
+{% block content %}
+<style>
+  .rr-head { display: flex; justify-content: space-between; align-items: flex-end;
+             flex-wrap: wrap; gap: 1rem; margin-bottom: 0.85rem; }
+  .rr-head h1 { margin: 0 0 0.2rem 0; font-size: 1.4rem; font-weight: 700;
+                letter-spacing: -0.02em; }
+  .rr-head p  { margin: 0; color: var(--muted-strong); font-size: 0.78rem;
+                max-width: 700px; line-height: 1.5; }
+
+  .meta-strip { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;
+                padding: 0.65rem 0.85rem; margin-bottom: 0.7rem;
+                background: linear-gradient(135deg, var(--violet), var(--blue));
+                border-radius: 7px; color: #fff; font-size: 0.82rem; }
+  .meta-strip strong { font-size: 1.1rem; font-family: 'JetBrains Mono', monospace;
+                       font-variant-numeric: tabular-nums; }
+  .meta-strip svg { width: 16px; height: 16px; }
+
+  .group-card { background: var(--bg-card); border: 1px solid var(--border);
+                border-radius: 8px; margin-bottom: 0.65rem; overflow: hidden; }
+  .group-head { padding: 0.65rem 0.95rem; background: var(--bg-1);
+                border-bottom: 1px solid var(--border);
+                font-size: 0.74rem; font-weight: 700;
+                text-transform: uppercase; letter-spacing: 0.08em;
+                color: var(--fg-dim); display: flex; align-items: center;
+                gap: 0.5rem; }
+  .group-head::before { content: ''; width: 3px; height: 14px;
+                         background: var(--blue); border-radius: 2px; }
+
+  .rule-row { padding: 0.85rem 0.95rem; border-bottom: 1px solid var(--border);
+              display: grid; grid-template-columns: 1fr 200px;
+              gap: 0.5rem 1rem; align-items: start; }
+  .rule-row:last-child { border-bottom: none; }
+  @media (max-width: 700px) { .rule-row { grid-template-columns: 1fr; } }
+
+  .rule-info .label { font-size: 0.85rem; font-weight: 600; color: var(--fg);
+                       display: flex; align-items: center; gap: 0.45rem; }
+  .rule-info .help  { font-size: 0.74rem; color: var(--muted-strong);
+                       margin-top: 0.25rem; line-height: 1.5; }
+  .rule-info code { background: var(--bg-1); padding: 0.05rem 0.35rem;
+                     border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+                     font-size: 0.7rem; color: var(--blue);
+                     border: 1px solid var(--border-strong); }
+  .override-pill { font-size: 0.6rem; font-weight: 700;
+                    padding: 0.1rem 0.45rem; border-radius: 999px;
+                    background: var(--amber-bg); color: var(--amber);
+                    text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .rule-input-wrap { display: flex; align-items: center; gap: 0.4rem; }
+  .rule-input-wrap .prefix,
+  .rule-input-wrap .suffix { font-family: 'JetBrains Mono', monospace;
+                              font-size: 0.85rem; color: var(--muted-strong);
+                              font-weight: 600; }
+  .rule-input-wrap input {
+    flex: 1; padding: 0.45rem 0.65rem;
+    border: 1px solid var(--border-strong); border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.92rem; font-weight: 700;
+    background: var(--bg-card); color: var(--fg);
+    text-align: right; font-variant-numeric: tabular-nums;
+  }
+  .rule-input-wrap input:focus { outline: none; border-color: var(--blue);
+                                  box-shadow: 0 0 0 3px var(--blue-glow); }
+  .default-hint { font-size: 0.66rem; color: var(--muted); margin-top: 0.2rem;
+                   text-align: right; font-family: 'JetBrains Mono', monospace; }
+
+  .actions-bar { display: flex; gap: 0.5rem; justify-content: space-between;
+                  align-items: center; flex-wrap: wrap;
+                  padding: 0.85rem 0; margin-top: 0.5rem;
+                  border-top: 1px solid var(--border); }
+  .actions-bar .left  { display: flex; gap: 0.4rem; }
+  .actions-bar .right { display: flex; gap: 0.4rem; }
+
+  .btn-danger {
+    padding: 0.5rem 0.95rem; font-size: 0.82rem; font-weight: 600;
+    background: var(--bg-card); color: var(--rose);
+    border: 1px solid rgba(220,38,38,0.4); border-radius: 8px;
+    font-family: inherit; cursor: pointer; height: 34px;
+  }
+  .btn-danger:hover { background: var(--rose-bg); }
+
+  .info-banner {
+    padding: 0.7rem 0.95rem; background: var(--cyan-bg);
+    border: 1px solid rgba(8,145,178,0.25); border-radius: 7px;
+    font-size: 0.78rem; color: var(--fg-dim); line-height: 1.55;
+    margin-bottom: 0.7rem;
+  }
+  .info-banner strong { color: var(--cyan); }
+</style>
+
+<div class="rr-head">
+  <div>
+    <h1>Research Rules</h1>
+    <p>The exact thresholds powering the AI Insights engine. Tune these to match your firm's risk tolerance — every change takes effect immediately on the Research page.</p>
+  </div>
+</div>
+
+<div class="info-banner">
+  <strong>Engine:</strong> Pure rule-based (no LLM, no token usage, no internet calls).
+  Each insight in the Research tab is generated by a single rule below — change the
+  threshold, and the matching insights re-evaluate on the next page load.
+</div>
+
+<div class="meta-strip">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  <strong>{{ override_count }}</strong> rule{{ override_count|pluralize }} customised
+  · <strong>{{ groups|length }}</strong> rule group{{ groups|length|pluralize }}
+  · all changes apply instantly to the Research tab
+</div>
+
+<form method="post" action="{% url 'clients:research_rules' %}">
+  {% csrf_token %}
+
+  {% for g in groups %}
+    <div class="group-card">
+      <div class="group-head">{{ g.group }}</div>
+      {% for r in g.rules %}
+        <div class="rule-row">
+          <div class="rule-info">
+            <div class="label">
+              {{ r.label }}
+              {% if r.overridden %}<span class="override-pill">customised</span>{% endif %}
+            </div>
+            <div class="help">{{ r.help }} <code>{{ r.key }}</code></div>
+          </div>
+          <div>
+            <div class="rule-input-wrap">
+              {% if r.unit == "₹" %}<span class="prefix">₹</span>{% endif %}
+              <input type="number" name="{{ r.key }}" value="{{ r.current }}"
+                     min="{{ r.min }}" max="{{ r.max }}" step="{{ r.step }}"
+                     required>
+              {% if r.unit == "%" or r.unit == "ppt" %}<span class="suffix">{{ r.unit }}</span>{% endif %}
+            </div>
+            <div class="default-hint">
+              default: {% if r.unit == "₹" %}₹{% endif %}{{ r.default }}{% if r.unit == "%" or r.unit == "ppt" %} {{ r.unit }}{% endif %}
+              · range {{ r.min }}–{{ r.max }}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endfor %}
+
+  <div class="actions-bar">
+    <div class="left">
+      <button type="submit" name="action" value="reset" class="btn-danger"
+              onclick="return confirm('Reset all rules to platform defaults?')">
+        Reset to defaults
+      </button>
+    </div>
+    <div class="right">
+      <a href="{% url 'clients:research' %}" class="btn btn-ghost">Back to Research</a>
+      <button type="submit" name="action" value="save" class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save changes
+      </button>
+    </div>
+  </div>
+</form>
+
+<div style="margin-top: 0.6rem; padding: 0.6rem 0.85rem; background: var(--bg-1);
+            border: 1px solid var(--border); border-radius: 5px;
+            font-size: 0.7rem; color: var(--fg-dim); line-height: 1.5;">
+  <strong>Persistence:</strong> Customised rules are stored in
+  <code style="background:var(--bg-card);padding:0.05rem 0.35rem;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:0.7rem;">research_rules.json</code>
+  next to the project root. Default values stay in code so a clean install always works.
+  Reset clears the JSON and reverts everything to the defaults shown above.
+</div>
+{% endblock %}

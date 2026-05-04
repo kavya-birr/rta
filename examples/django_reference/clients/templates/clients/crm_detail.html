@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+{% load inr %}
+{% block title %}{{ lead.name }} · CRM{% endblock %}
+{% block crumb_root %}<a href="{% url 'clients:crm' %}">CRM</a>{% endblock %}
+{% block crumb_leaf %}{{ lead.name }}{% endblock %}
+
+{% block content %}
+<style>
+  .ld-head {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap; margin-bottom: 0.85rem;
+  }
+  .ld-head h1 { margin: 0 0 0.2rem 0; font-size: 1.4rem; font-weight: 700;
+                letter-spacing: -0.02em; }
+  .ld-head .sub {
+    display: flex; gap: 0.65rem; align-items: center; color: var(--muted-strong);
+    font-size: 0.8rem; flex-wrap: wrap;
+  }
+  .ld-head .sub .pan { font-family: 'JetBrains Mono', monospace; }
+
+  .stage-pill {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.3rem 0.85rem; border-radius: 999px;
+    font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .stage-pill::before { content: ''; width: 7px; height: 7px;
+                        border-radius: 50%; background: currentColor;
+                        box-shadow: 0 0 6px currentColor; }
+  .stage-pill.new_prospect { color: var(--blue);    background: var(--blue-bg);    border: 1px solid rgba(37,99,235,0.25); }
+  .stage-pill.contacted    { color: var(--cyan);    background: var(--cyan-bg);    border: 1px solid rgba(8,145,178,0.25); }
+  .stage-pill.kyc_pending  { color: var(--amber);   background: var(--amber-bg);   border: 1px solid rgba(217,119,6,0.25); }
+  .stage-pill.invested     { color: var(--emerald); background: var(--emerald-bg); border: 1px solid rgba(5,150,105,0.25); }
+
+  .layout-2col {
+    display: grid; grid-template-columns: 1.3fr 1fr; gap: 0.85rem;
+  }
+  @media (max-width: 1000px) { .layout-2col { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.95rem 1.05rem; margin-bottom: 0.65rem;
+  }
+  .panel h3 {
+    margin: 0 0 0.7rem 0; font-size: 0.7rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-dim);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  /* Stage stepper at top of right column */
+  .stepper { display: flex; gap: 0.3rem; margin-bottom: 0.6rem; }
+  .stepper form { flex: 1; }
+  .stepper button {
+    width: 100%; padding: 0.45rem 0.4rem; font-size: 0.7rem;
+    font-weight: 600; cursor: pointer; border-radius: 6px; font-family: inherit;
+    border: 1px solid var(--border-strong); background: var(--bg-1);
+    color: var(--muted-strong); transition: all 0.12s;
+  }
+  .stepper button:hover { background: var(--bg-card); color: var(--fg); }
+  .stepper button.current.new_prospect { background: var(--blue);    color: #fff; border-color: var(--blue); }
+  .stepper button.current.contacted    { background: var(--cyan);    color: #fff; border-color: var(--cyan); }
+  .stepper button.current.kyc_pending  { background: var(--amber);   color: #fff; border-color: var(--amber); }
+  .stepper button.current.invested     { background: var(--emerald); color: #fff; border-color: var(--emerald); }
+
+  /* Progress bar */
+  .progress-wrap { margin-bottom: 0.85rem; }
+  .progress-bar { height: 8px; background: var(--bg-2); border-radius: 999px; overflow: hidden; }
+  .progress-bar > span { display: block; height: 100%;
+    background: linear-gradient(90deg, var(--blue), var(--violet));
+    border-radius: 999px; transition: width 0.3s; }
+  .progress-meta { display: flex; justify-content: space-between;
+                   font-size: 0.72rem; color: var(--muted-strong); margin-top: 0.3rem; }
+
+  /* Journey checklist */
+  .journey-stage {
+    margin-bottom: 0.75rem;
+  }
+  .journey-stage .sh {
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.3rem;
+    padding-left: 0.2rem;
+  }
+  .journey-item {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--border); border-radius: 6px;
+    margin-bottom: 0.3rem; background: var(--bg-card);
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .journey-item.done { background: var(--emerald-bg);
+                       border-color: rgba(5,150,105,0.25); }
+  .journey-item .check {
+    width: 18px; height: 18px; flex-shrink: 0;
+    border: 1.5px solid var(--border-strong); border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--bg-card); cursor: pointer;
+    font-family: inherit; padding: 0;
+  }
+  .journey-item.done .check {
+    background: var(--emerald); border-color: var(--emerald); color: #fff;
+  }
+  .journey-item .check svg { width: 12px; height: 12px; }
+  .journey-item .lab { flex: 1; font-size: 0.83rem; color: var(--fg); }
+  .journey-item.done .lab { text-decoration: line-through;
+                             color: var(--muted-strong); }
+  .journey-item .ts { font-size: 0.66rem; color: var(--muted);
+                       font-variant-numeric: tabular-nums; }
+
+  /* Activity */
+  .activity-list { list-style: none; padding: 0; margin: 0; }
+  .activity-item {
+    display: flex; gap: 0.65rem; padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border); font-size: 0.8rem;
+  }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-item .when {
+    flex-shrink: 0; width: 100px; color: var(--muted);
+    font-size: 0.7rem; font-variant-numeric: tabular-nums;
+  }
+  .activity-item .what { flex: 1; color: var(--fg); }
+  .activity-item .kind {
+    display: inline-block; font-size: 0.6rem; font-weight: 700;
+    padding: 0.05rem 0.4rem; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    margin-right: 0.35rem;
+  }
+  .kind.note      { background: var(--bg-1); color: var(--muted-strong); }
+  .kind.task      { background: var(--emerald-bg); color: var(--emerald); }
+  .kind.stage,
+  .kind.stage_auto { background: var(--blue-bg); color: var(--blue); }
+  .kind.created   { background: var(--violet); color: #fff; }
+  .kind.edit      { background: var(--amber-bg); color: var(--amber); }
+
+  /* Edit form / KV */
+  .kv-mini { display: grid; grid-template-columns: 110px 1fr; gap: 0.4rem 0.85rem;
+             font-size: 0.83rem; }
+  .kv-mini .k { color: var(--muted-strong); font-weight: 600; }
+  .kv-mini .v { color: var(--fg); }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
+  .form-grid .full { grid-column: 1 / -1; }
+  .form-grid label { display: block; font-size: 0.65rem; font-weight: 700;
+                     color: var(--muted-strong); margin-bottom: 0.2rem;
+                     text-transform: uppercase; letter-spacing: 0.05em; }
+  .form-grid input, .form-grid textarea {
+    width: 100%; padding: 0.4rem 0.55rem; border: 1px solid var(--border-strong);
+    border-radius: 6px; font-family: inherit; font-size: 0.82rem;
+    background: var(--bg-card); color: var(--fg);
+  }
+  .form-grid textarea { min-height: 50px; resize: vertical; }
+  .form-grid input:focus, .form-grid textarea:focus {
+    outline: none; border-color: var(--blue);
+    box-shadow: 0 0 0 2px var(--blue-glow);
+  }
+
+  .add-note-form { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
+  .add-note-form input {
+    flex: 1; padding: 0.4rem 0.6rem; border: 1px solid var(--border-strong);
+    border-radius: 6px; font-family: inherit; font-size: 0.82rem;
+    background: var(--bg-card); color: var(--fg);
+  }
+  .add-note-form input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue-glow); }
+
+  details.danger { margin-top: 0.7rem; }
+  details.danger summary { cursor: pointer; color: var(--rose); font-size: 0.78rem; font-weight: 600; }
+  details.danger button {
+    margin-top: 0.5rem; padding: 0.4rem 0.85rem; border-radius: 6px;
+    background: var(--rose); color: #fff; border: 1px solid var(--rose);
+    font-family: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+  }
+</style>
+
+<div class="ld-head">
+  <div>
+    <h1>{{ lead.name }}</h1>
+    <div class="sub">
+      {% if lead.phone %}<span>📞 {{ lead.phone }}</span>{% endif %}
+      {% if lead.email %}<span>✉ {{ lead.email }}</span>{% endif %}
+      {% if lead.pan %}<span class="pan">{{ lead.pan }}</span>{% endif %}
+      {% if lead.source %}<span>Source: {{ lead.source }}</span>{% endif %}
+    </div>
+  </div>
+  <div>
+    <span class="stage-pill {{ lead.stage }}">{{ stage_labels|get_item:lead.stage }}</span>
+  </div>
+</div>
+
+<!-- Stage stepper -->
+<div class="panel">
+  <h3>Funnel Stage <span style="font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0;font-size:0.75rem;">click to override · auto-advances as tasks complete</span></h3>
+  <div class="stepper">
+    {% for key, label, color in stages %}
+      <form method="post" action="{% url 'clients:crm_set_stage' lead.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="stage" value="{{ key }}">
+        <input type="hidden" name="next" value="{% url 'clients:crm_detail' lead.id %}">
+        <button class="{% if lead.stage == key %}current {{ key }}{% endif %}">{{ label }}</button>
+      </form>
+    {% endfor %}
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-bar"><span style="width: {{ progress_pct }}%"></span></div>
+    <div class="progress-meta">
+      <span>{{ progress_done }} of {{ progress_total }} onboarding steps complete</span>
+      <span><strong>{{ progress_pct }}%</strong></span>
+    </div>
+  </div>
+</div>
+
+<!-- ── Risk Profile callout (above the journey) ── -->
+{% if lead.risk_profile %}
+  {% with rp=lead.risk_profile %}
+  <div class="panel" style="border-left: 3px solid var(--{{ rp.color }});">
+    <h3 style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Risk Profile</span>
+      <a href="{% url 'clients:crm_risk' lead.id %}" class="btn btn-ghost btn-sm" style="text-transform:none;letter-spacing:0;font-weight:500;">View / retake</a>
+    </h3>
+    <div style="display:flex;gap:1.2rem;align-items:center;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:1.4rem;font-weight:700;letter-spacing:-0.02em;color:var(--{{ rp.color }});">{{ rp.category }}</div>
+        <div style="font-size:0.72rem;color:var(--muted);">Score {{ rp.score }} / {{ rp.max_score }} · completed {{ rp.completed_at|slice:":10" }}</div>
+      </div>
+      <div style="flex:1;min-width:200px;">
+        <div style="font-size:0.65rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.07em;">Suggested Allocation</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;font-weight:600;margin-top:0.15rem;">{{ rp.allocation }}</div>
+      </div>
+    </div>
+    <p style="margin:0.7rem 0 0 0;font-size:0.82rem;color:var(--fg-dim);line-height:1.5;">{{ rp.blurb }}</p>
+  </div>
+  {% endwith %}
+{% else %}
+  <div class="panel" style="background: var(--amber-bg); border-color: rgba(217,119,6,0.25);">
+    <h3 style="display:flex;justify-content:space-between;align-items:center;color:var(--amber);">
+      <span>Risk Profile — not yet assessed</span>
+      <a href="{% url 'clients:crm_risk' lead.id %}" class="btn btn-primary btn-sm" style="text-transform:none;letter-spacing:0;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11H1l8-8 8 8h-8v8z" transform="rotate(90 9 11)"/><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Start assessment
+      </a>
+    </h3>
+    <p style="margin:0;font-size:0.82rem;color:var(--fg-dim);">A 6-question profile that places the client into one of five buckets (Conservative → Aggressive) and recommends a starting asset allocation. Required before the suggested portfolio can be built.</p>
+  </div>
+{% endif %}
+
+<div class="layout-2col">
+  <!-- LEFT: Onboarding journey -->
+  <div>
+    <div class="panel">
+      <h3>Onboarding Journey</h3>
+      {% for key, label, color in stages %}
+        {% with items=journey_by_stage|get_item:key %}
+          {% if items %}
+            <div class="journey-stage">
+              <div class="sh">{{ label }}</div>
+              {% for item in items %}
+                <div class="journey-item {% if item.done %}done{% endif %}">
+                  {% if item.key == "risk_profile" %}
+                    {# Risk-profile task can't be ticked manually — it requires the assessment to be completed #}
+                    <a href="{% url 'clients:crm_risk' lead.id %}" class="check"
+                       title="{% if item.done %}View saved profile{% else %}Take the risk assessment{% endif %}"
+                       style="text-decoration:none;">
+                      {% if item.done %}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      {% endif %}
+                    </a>
+                  {% else %}
+                    <form method="post" action="{% url 'clients:crm_toggle_task' lead.id %}" style="display:inline;">
+                      {% csrf_token %}
+                      <input type="hidden" name="key" value="{{ item.key }}">
+                      <input type="hidden" name="done" value="{% if item.done %}0{% else %}1{% endif %}">
+                      <button type="submit" class="check" title="{% if item.done %}Mark incomplete{% else %}Mark complete{% endif %}">
+                        {% if item.done %}
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        {% endif %}
+                      </button>
+                    </form>
+                  {% endif %}
+                  {% if item.key == "risk_profile" %}
+                    <a href="{% url 'clients:crm_risk' lead.id %}" class="lab" style="color: inherit; text-decoration: none;">
+                      {{ item.label }}
+                      <span style="font-size:0.7rem;color:var(--blue);font-weight:600;margin-left:0.4rem;">{% if item.done %}view →{% else %}start →{% endif %}</span>
+                    </a>
+                  {% else %}
+                    <span class="lab">{{ item.label }}</span>
+                  {% endif %}
+                  {% if item.completed_at %}<span class="ts">{{ item.completed_at|slice:":10" }}</span>{% endif %}
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+      {% endfor %}
+    </div>
+
+    <div class="panel">
+      <h3>Activity Log</h3>
+      <ul class="activity-list">
+        {% for ev in activity %}
+          <li class="activity-item">
+            <span class="when">{{ ev.at|slice:":16"|cut:"T" }}</span>
+            <span class="what">
+              <span class="kind {{ ev.kind }}">{{ ev.kind|cut:"_" }}</span>
+              {{ ev.text }}
+            </span>
+          </li>
+        {% empty %}
+          <li class="empty" style="padding: 1rem;"><p>No activity yet.</p></li>
+        {% endfor %}
+      </ul>
+
+      <form method="post" action="{% url 'clients:crm_add_note' lead.id %}" class="add-note-form">
+        {% csrf_token %}
+        <input type="text" name="text" placeholder="Add a note... (e.g. 'Followed up via WhatsApp')" required>
+        <button type="submit" class="btn btn-ghost btn-sm">Add</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- RIGHT: Details / edit -->
+  <div>
+    <div class="panel">
+      <h3>Lead Details</h3>
+      <form method="post" action="{% url 'clients:crm_update' lead.id %}">
+        {% csrf_token %}
+        <div class="form-grid">
+          <div class="full">
+            <label>Name</label>
+            <input type="text" name="name" value="{{ lead.name }}" required>
+          </div>
+          <div>
+            <label>Phone</label>
+            <input type="text" name="phone" value="{{ lead.phone }}">
+          </div>
+          <div>
+            <label>Email</label>
+            <input type="text" name="email" value="{{ lead.email }}">
+          </div>
+          <div>
+            <label>PAN</label>
+            <input type="text" name="pan" value="{{ lead.pan }}" style="text-transform:uppercase">
+          </div>
+          <div>
+            <label>Expected AUM (₹)</label>
+            <input type="number" name="expected_aum" min="0" step="1" value="{{ lead.expected_aum|floatformat:0 }}">
+          </div>
+          <div class="full">
+            <label>Source</label>
+            <input type="text" name="source" value="{{ lead.source }}">
+          </div>
+          <div class="full">
+            <label>Notes</label>
+            <textarea name="notes">{{ lead.notes }}</textarea>
+          </div>
+        </div>
+        <div style="margin-top: 0.7rem; display: flex; justify-content: flex-end;">
+          <button class="btn btn-primary btn-sm" type="submit">Save changes</button>
+        </div>
+      </form>
+
+      <details class="danger">
+        <summary>Delete this lead</summary>
+        <form method="post" action="{% url 'clients:crm_delete' lead.id %}"
+              onsubmit="return confirm('Permanently remove {{ lead.name|escapejs }} from the funnel?')">
+          {% csrf_token %}
+          <button type="submit">Delete lead</button>
+        </form>
+      </details>
+    </div>
+
+    <div class="panel">
+      <h3>Timeline</h3>
+      <div class="kv-mini">
+        <div class="k">Created</div><div class="v">{{ lead.created_at|slice:":16"|cut:"T" }}</div>
+        <div class="k">Last update</div><div class="v">{{ lead.updated_at|slice:":16"|cut:"T" }}</div>
+        <div class="k">Lead ID</div><div class="v" style="font-family:'JetBrains Mono',monospace;font-size:0.78rem;">{{ lead.id }}</div>
+        {% if lead.pan and lead.stage == "invested" %}
+          <div class="k">Portfolio</div>
+          <div class="v"><a href="{% url 'clients:detail' lead.pan %}" class="btn btn-ghost btn-sm">View →</a></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

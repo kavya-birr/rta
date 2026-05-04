@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+{% load inr %}
+{% block title %}Book Overview · openreversefeed{% endblock %}
+{% block crumb_leaf %}Book Overview{% endblock %}
+
+{% block content %}
+<style>
+  /* ─── Hierarchy ─── */
+  .ov-section { margin-bottom: 1.2rem; }
+  .ov-h {
+    margin: 1rem 0 0.4rem 0;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted-strong);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .ov-h .hint { font-size: 0.66rem; color: var(--muted); font-weight: 500; letter-spacing: normal; text-transform: none; }
+
+  /* ─── Hero KPIs (4 big numbers) ─── */
+  .hero {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.8rem;
+    margin-bottom: 0.5rem;
+  }
+  @media (max-width: 900px) { .hero { grid-template-columns: repeat(2, 1fr); } }
+  .hero-card {
+    padding: 1rem 1.1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-card::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px;
+  }
+  .hero-card.aum::before { background: var(--blue); }
+  .hero-card.gain::before { background: var(--emerald); }
+  .hero-card.flow::before { background: var(--cyan); }
+  .hero-card.clients::before { background: var(--violet); }
+  .hero-label {
+    font-size: 0.62rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .hero-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: var(--fg);
+    margin: 0.2rem 0 0.1rem;
+    letter-spacing: -0.02em;
+  }
+  .hero-sub {
+    font-size: 0.7rem;
+    color: var(--fg-dim);
+  }
+  .hero-sub .pos { color: var(--emerald); font-weight: 600; }
+  .hero-sub .neg { color: var(--rose); font-weight: 600; }
+
+  /* ─── Secondary stat strip (small inline numbers) ─── */
+  .strip {
+    display: flex;
+    gap: 0;
+    padding: 0;
+    margin: 0.4rem 0 0.8rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow-x: auto;
+  }
+  .strip > div {
+    flex: 1;
+    padding: 0.55rem 0.8rem;
+    border-right: 1px solid var(--border);
+    min-width: 130px;
+  }
+  .strip > div:last-child { border-right: none; }
+  .strip-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
+  .strip-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.92rem;
+    font-weight: 600;
+    margin-top: 0.12rem;
+  }
+  .strip-val.pos { color: var(--emerald); }
+  .strip-val.neg { color: var(--rose); }
+  .strip-val.muted { color: var(--fg-dim); font-weight: 500; }
+
+  /* ─── Two-column layout ─── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+  @media (max-width: 1100px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ─── Allocation rows (used for AMC + category) ─── */
+  .alloc-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.28rem 0; font-size: 0.78rem; }
+  .alloc-row .name { flex: 0 0 38%; font-weight: 500; color: var(--fg); }
+  .alloc-bar {
+    flex: 1;
+    height: 5px;
+    background: var(--bg-1);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .alloc-bar > span { display: block; height: 100%; border-radius: 2px; }
+  .alloc-row .amt {
+    flex: 0 0 18%;
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+  }
+  .alloc-row .pct { flex: 0 0 8%; text-align: right; color: var(--fg-dim); font-size: 0.72rem; }
+
+  /* ─── Compact top-N tables ─── */
+  .compact-table { font-size: 0.78rem; }
+  .compact-table th, .compact-table td { padding: 0.32rem 0.7rem; }
+
+  /* ─── Footer info ─── */
+  .footer-info {
+    margin-top: 0.8rem;
+    padding: 0.6rem 0.85rem;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 0.7rem;
+    color: var(--fg-dim);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .footer-info strong { color: var(--fg); font-weight: 600; }
+</style>
+
+<div class="page-head">
+  <div>
+    <h1>Book Overview</h1>
+    <p>{{ d.active_clients }} active · last NAV {{ d.last_nav_date|default:"—" }}</p>
+  </div>
+</div>
+
+<!-- ━━━━━ HERO: 4 BIG KPIs ━━━━━ -->
+<div class="hero">
+  <div class="hero-card aum">
+    <div class="hero-label">Total AUM</div>
+    <div class="hero-val">₹{{ d.total_aum|inr }}</div>
+    <div class="hero-sub">across {{ d.active_clients }} active clients</div>
+  </div>
+  <div class="hero-card gain">
+    <div class="hero-label">Total Gain / Loss</div>
+    <div class="hero-val" style="color: {% if d.total_unrealized >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+      {% if d.total_unrealized >= 0 %}+{% endif %}₹{% widthratio d.total_unrealized|add:d.total_realized 1 1 as combined %}{{ d.total_unrealized|add:d.total_realized|inr_abs }}
+    </div>
+    <div class="hero-sub">
+      <span class="pos">+₹{{ d.total_unrealized|inr_abs }}</span> unrealized ·
+      <span class="{% if d.total_realized >= 0 %}pos{% else %}neg{% endif %}">{% if d.total_realized >= 0 %}+{% else %}−{% endif %}₹{{ d.total_realized|inr_abs }}</span> realized
+    </div>
+  </div>
+  <div class="hero-card flow">
+    <div class="hero-label">Net Flow</div>
+    <div class="hero-val" style="color: {% if d.net_flow >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+      {% if d.net_flow >= 0 %}+{% endif %}₹{{ d.net_flow|inr_abs }}
+    </div>
+    <div class="hero-sub">
+      <span class="pos">+₹{{ d.net_inflow|inr_abs }}</span> in ·
+      <span class="neg">−₹{{ d.net_outflow|inr_abs }}</span> out
+    </div>
+  </div>
+  <div class="hero-card clients">
+    <div class="hero-label">Active Clients</div>
+    <div class="hero-val">{{ d.active_clients }}<span style="color: var(--fg-dim); font-size: 0.95rem; font-weight: 500;"> / {{ d.total_clients }}</span></div>
+    <div class="hero-sub">{{ d.total_folios }} folios · {{ d.new_clients_count }} new in 6m</div>
+  </div>
+</div>
+
+<!-- ━━━━━ SECONDARY METRICS STRIP ━━━━━ -->
+<div class="strip">
+  <div>
+    <div class="strip-label">Avg AUM / Client</div>
+    <div class="strip-val">{% if d.avg_aum_per_client %}₹{{ d.avg_aum_per_client|inr0 }}{% else %}—{% endif %}</div>
+  </div>
+  <div>
+    <div class="strip-label">Avg XIRR</div>
+    <div class="strip-val {% if d.avg_xirr_pct and d.avg_xirr_pct > 0 %}pos{% elif d.avg_xirr_pct and d.avg_xirr_pct < 0 %}neg{% endif %}">{% if d.avg_xirr_pct is not None %}{{ d.avg_xirr_pct }}%{% else %}—{% endif %}</div>
+  </div>
+  <div>
+    <div class="strip-label">Retention (QoQ)</div>
+    <div class="strip-val {% if d.retention_rate_pct and d.retention_rate_pct >= 80 %}pos{% endif %}">{% if d.retention_rate_pct is not None %}{{ d.retention_rate_pct }}%{% else %}—{% endif %}</div>
+  </div>
+  <div>
+    <div class="strip-label">Trail Income (annual est.)</div>
+    <div class="strip-val pos">₹{{ d.trail_income_annual|inr0 }}</div>
+  </div>
+  <div>
+    <div class="strip-label">Active SIPs</div>
+    <div class="strip-val pos">{{ d.active_sips_count }}</div>
+  </div>
+  <div>
+    <div class="strip-label">Monthly SIP Commit</div>
+    <div class="strip-val pos">₹{{ d.monthly_sip_commitment|inr0 }}</div>
+  </div>
+</div>
+
+<!-- ━━━━━ ALLOCATIONS (visual) ━━━━━ -->
+<div class="two-col">
+  <div>
+    <h2 class="ov-h">AUM by Asset Class</h2>
+    <div class="card padded">
+      {% for c in d.aum_by_category %}
+      <div class="alloc-row">
+        <span class="name">{{ c.category }}</span>
+        <span class="alloc-bar"><span style="width: {{ c.pct }}%; background:
+          {% if c.category == 'Equity' %}var(--emerald)
+          {% elif c.category == 'Debt' %}var(--cyan)
+          {% elif c.category == 'Hybrid' %}var(--violet)
+          {% elif c.category == 'Commodity' %}var(--amber)
+          {% else %}var(--muted){% endif %};"></span></span>
+        <span class="amt">₹{{ c.aum|inr0 }}</span>
+        <span class="pct">{{ c.pct }}%</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div>
+    <h2 class="ov-h">AUM by AMC <span class="hint">top 8</span></h2>
+    <div class="card padded">
+      {% for a in d.aum_by_amc|slice:":8" %}
+      <div class="alloc-row">
+        <span class="name">{{ a.amc_name|truncatechars:32 }}</span>
+        <span class="alloc-bar"><span style="width: {{ a.pct }}%; background: var(--blue);"></span></span>
+        <span class="amt">₹{{ a.aum|inr0 }}</span>
+        <span class="pct">{{ a.pct }}%</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- ━━━━━ TOP CLIENTS (consolidated) ━━━━━ -->
+<h2 class="ov-h">Top Clients <span class="hint">by current AUM</span></h2>
+<div class="card">
+  <table class="table compact-table">
+    <thead>
+      <tr><th>#</th><th>Client</th><th class="num">AUM</th><th class="num">Gain</th><th class="num">XIRR</th><th class="num">Folios</th></tr>
+    </thead>
+    <tbody>
+    {% for c in d.top_clients_by_aum %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td><a href="{% url 'clients:detail' c.pan %}" style="color: var(--blue); font-weight: 500;">{{ c.name|truncatechars:32 }}</a></td>
+        <td class="num">₹{{ c.current_value|inr0 }}</td>
+        <td class="num">
+          {% if c.total_gain %}
+            <span style="color: {% if c.total_gain >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">{% if c.total_gain >= 0 %}+{% endif %}₹{{ c.total_gain|inr0 }}</span>
+          {% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+        </td>
+        <td class="num">{% if c.xirr_pct is not None %}<span style="color: {% if c.xirr_pct >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">{{ c.xirr_pct }}%</span>{% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}</td>
+        <td class="num">{{ c.schemes_held }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ━━━━━ TAX & SIP (compact) ━━━━━ -->
+<div class="two-col">
+  <div>
+    <h2 class="ov-h">Realized Gains <span class="hint">FIFO tax lots</span></h2>
+    <div class="strip" style="margin: 0;">
+      <div>
+        <div class="strip-label">STCG</div>
+        <div class="strip-val {% if d.stcg >= 0 %}pos{% else %}neg{% endif %}">{% if d.stcg >= 0 %}+{% endif %}₹{{ d.stcg|inr0 }}</div>
+      </div>
+      <div>
+        <div class="strip-label">LTCG</div>
+        <div class="strip-val {% if d.ltcg >= 0 %}pos{% else %}neg{% endif %}">{% if d.ltcg >= 0 %}+{% endif %}₹{{ d.ltcg|inr0 }}</div>
+      </div>
+      <div>
+        <div class="strip-label">Capital Losses</div>
+        <div class="strip-val neg">₹{{ d.capital_losses|inr0 }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <h2 class="ov-h">SIP Book <span class="hint">{{ d.active_sips_count }} active across all clients</span></h2>
+    <div class="strip" style="margin: 0;">
+      <div>
+        <div class="strip-label">Monthly</div>
+        <div class="strip-val pos">₹{{ d.monthly_sip_commitment|inr0 }}</div>
+      </div>
+      <div>
+        <div class="strip-label">Annualised</div>
+        <div class="strip-val pos">₹{{ d.annual_sip_commitment|inr0 }}</div>
+      </div>
+      <div>
+        <div class="strip-label">Active</div>
+        <div class="strip-val pos">{{ d.active_sips_count }}</div>
+      </div>
+      <div>
+        <div class="strip-label">Cancelled</div>
+        <div class="strip-val muted">{{ d.cancelled_sips_count }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━━━ SCHEMES PERFORMANCE ━━━━━ -->
+<div class="two-col">
+  <div>
+    <h2 class="ov-h">Top Performing Schemes <span class="hint">top 5</span></h2>
+    <div class="card">
+      <table class="table compact-table">
+        <thead><tr><th>Scheme</th><th class="num">Return</th><th class="num">AUM</th></tr></thead>
+        <tbody>
+        {% for s in d.top_performing_schemes|slice:":5" %}
+          <tr>
+            <td>{{ s.scheme_name|truncatechars:38 }}</td>
+            <td class="num"><span style="color:var(--emerald);">+{{ s.unrealized_pct }}%</span></td>
+            <td class="num">₹{{ s.aum|inr0 }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <h2 class="ov-h">Underperforming Schemes <span class="hint">bottom 5</span></h2>
+    <div class="card">
+      <table class="table compact-table">
+        <thead><tr><th>Scheme</th><th class="num">Return</th><th class="num">AUM</th></tr></thead>
+        <tbody>
+        {% for s in d.underperforming_schemes|slice:":5" %}
+          <tr>
+            <td>{{ s.scheme_name|truncatechars:38 }}</td>
+            <td class="num"><span style="color:{% if s.unrealized_pct >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">{% if s.unrealized_pct >= 0 %}+{% endif %}{{ s.unrealized_pct }}%</span></td>
+            <td class="num">₹{{ s.aum|inr0 }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━━━ RISK & ATTENTION ━━━━━ -->
+<div class="two-col">
+  <div>
+    <h2 class="ov-h">Concentrated Portfolios <span class="hint">&gt;40% in one scheme</span></h2>
+    <div class="card">
+      <table class="table compact-table">
+        <thead><tr><th>Client</th><th class="num">Top Weight</th><th class="num">AUM</th></tr></thead>
+        <tbody>
+        {% for c in d.concentrated_clients|slice:":5" %}
+          <tr>
+            <td><a href="{% url 'clients:detail' c.pan %}" style="color:var(--blue);">{{ c.name|truncatechars:25 }}</a></td>
+            <td class="num"><span style="color: var(--amber);">{{ c.weight_pct }}%</span></td>
+            <td class="num">₹{{ c.aum|inr0 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" style="text-align:center; color:var(--fg-dim); font-size:0.75rem;">None.</td></tr>
+        {% endfor %}
+      </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <h2 class="ov-h">Action Items</h2>
+    <div class="card">
+      <table class="table compact-table">
+        <thead><tr><th>Type</th><th>Client</th><th>Detail</th></tr></thead>
+        <tbody>
+          {% if d.dormant_clients %}
+            {% for c in d.dormant_clients|slice:":3" %}
+            <tr>
+              <td><span class="tag tag-other">dormant</span></td>
+              <td><a href="{% url 'clients:detail' c.pan %}" style="color:var(--blue);">{{ c.name|truncatechars:22 }}</a></td>
+              <td style="font-size:0.72rem; color:var(--fg-dim);">last txn {{ c.last_txn|date:"M Y" }}</td>
+            </tr>
+            {% endfor %}
+          {% endif %}
+          {% if d.stopped_sips %}
+            {% for s in d.stopped_sips|slice:":3" %}
+            <tr>
+              <td><span class="tag tag-redemption">cancelled SIP</span></td>
+              <td><a href="{% url 'clients:detail' s.pan %}" style="color:var(--blue);">{{ s.client|truncatechars:22 }}</a></td>
+              <td style="font-size:0.72rem; color:var(--fg-dim);">{{ s.scheme_name|truncatechars:30 }}</td>
+            </tr>
+            {% endfor %}
+          {% endif %}
+          {% if d.sips_ending_soon %}
+            {% for s in d.sips_ending_soon|slice:":3" %}
+            <tr>
+              <td><span class="tag tag-other">renewal due</span></td>
+              <td><a href="{% url 'clients:detail' s.pan %}" style="color:var(--blue);">{{ s.client|truncatechars:22 }}</a></td>
+              <td style="font-size:0.72rem; color:var(--fg-dim);">{{ s.tr_type }} ends {{ s.end_date|date:"d M Y" }}</td>
+            </tr>
+            {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━━━ RECENT ACTIVITY ━━━━━ -->
+<h2 class="ov-h">Recent Activity <span class="hint">last 10 transactions</span></h2>
+<div class="card">
+  <table class="table compact-table">
+    <thead>
+      <tr><th>Date</th><th>Client</th><th>Scheme</th><th>Action</th><th class="num">Amount</th></tr>
+    </thead>
+    <tbody>
+    {% for r in d.recent_transactions|slice:":10" %}
+      <tr>
+        <td style="white-space:nowrap;">{{ r.date|date:"d M" }}</td>
+        <td>{{ r.client|truncatechars:22 }}</td>
+        <td>{{ r.scheme_name|truncatechars:35 }}</td>
+        <td><span class="tag tag-{% if r.action == 'buy' %}purchase{% else %}redemption{% endif %}">{{ r.action }}</span></td>
+        <td class="num">₹{{ r.amount|inr0 }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ━━━━━ FOOTER STRIP ━━━━━ -->
+<div class="footer-info">
+  <span><strong>Total Invested:</strong> ₹{{ d.total_invested|inr0 }}</span>
+  <span><strong>Trail rate:</strong> {{ d.trail_rate_pct }}% blended</span>
+  <span><strong>NAV updated:</strong> {{ d.last_nav_date|default:"—" }}</span>
+  <span><strong>{{ d.zero_aum_clients_count }}</strong> zero-AUM clients</span>
+  <span><strong>{{ d.dormant_clients|length }}</strong> dormant (12m+)</span>
+</div>
+
+{% endblock %}

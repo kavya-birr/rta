@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% load inr %}
+{% block title %}{{ scheme_name }} · {{ account.name }}{% endblock %}
+{% block crumb_leaf %}
+  <a href="{% url 'clients:list' %}" style="color: var(--fg-dim);">Clients</a> /
+  <a href="{% url 'clients:detail' pan %}" style="color: var(--fg-dim);">{{ account.name }}</a> /
+  {{ scheme.scheme_code }}
+{% endblock %}
+
+{% block content %}
+
+<style>
+  .section-block { margin-bottom: 0.9rem; }
+  .section-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0.2rem 0 0.4rem 0;
+  }
+  .section-title h2 {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg);
+  }
+  .section-title .hint { font-size: 0.7rem; color: var(--muted); }
+
+  .kv-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.55rem 1rem;
+    padding: 0.55rem 0.85rem;
+  }
+  .kv { display: flex; flex-direction: column; gap: 0.1rem; }
+  .kv-label {
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: 600;
+  }
+  .kv-value { font-size: 0.82rem; color: var(--fg); font-weight: 500; }
+  .kv-value.empty { color: var(--fg-dim); font-weight: 400; }
+  .kv-value code { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+
+  .placeholder-box {
+    padding: 0.8rem;
+    background: var(--bg-1);
+    border: 1px dashed var(--border-strong);
+    border-radius: 5px;
+    text-align: center;
+    color: var(--fg-dim);
+    font-size: 0.78rem;
+  }
+</style>
+
+<div class="page-head">
+  <div>
+    <h1 style="font-size: 1.15rem;">{{ scheme_name }}</h1>
+    <p>
+      <code>{{ scheme.scheme_code }}</code>
+      {% if scheme.isin %} · <code>{{ scheme.isin }}</code>{% endif %}
+      · <span class="tag tag-other">{{ asset_class }}</span>
+    </p>
+  </div>
+  <a href="{% url 'clients:detail' pan %}" class="btn btn-ghost">← Back to client</a>
+</div>
+
+<!-- SCHEME METADATA -->
+<div class="section-block">
+  <div class="section-title"><h2>Scheme Details</h2></div>
+  <div class="card">
+    <div class="kv-grid">
+      <div class="kv"><div class="kv-label">Scheme Name</div><div class="kv-value">{{ scheme_name|truncatechars:60 }}</div></div>
+      <div class="kv"><div class="kv-label">ISIN</div><div class="kv-value">{% if scheme.isin %}<code>{{ scheme.isin }}</code>{% else %}<span class="empty">—</span>{% endif %}</div></div>
+      <div class="kv"><div class="kv-label">Scheme Code</div><div class="kv-value"><code>{{ scheme.scheme_code }}</code></div></div>
+      <div class="kv"><div class="kv-label">Category / Subcategory</div><div class="kv-value">{% if scheme.meta.nature %}{{ scheme.meta.nature }}{% else %}<span class="empty">—</span>{% endif %}</div></div>
+      <div class="kv"><div class="kv-label">Asset Class</div><div class="kv-value">{{ asset_class }}</div></div>
+      <div class="kv"><div class="kv-label">Plan Type</div><div class="kv-value">{% if scheme.option %}{{ scheme.option|title }}{% else %}<span class="empty">—</span>{% endif %}</div></div>
+      <div class="kv"><div class="kv-label">Option</div><div class="kv-value">{% if scheme.plan_type %}{{ scheme.plan_type|cut:"_"|title }}{% else %}<span class="empty">—</span>{% endif %}</div></div>
+      <div class="kv"><div class="kv-label">Exit Load</div><div class="kv-value empty">—</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- CURRENT HOLDINGS -->
+<div class="section-block">
+  <div class="section-title"><h2>Current Holdings</h2>{% if nav_date %}<span class="hint">NAV as of {{ nav_date }}</span>{% endif %}</div>
+  <div class="summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 0.45rem; margin-bottom: 0.4rem;">
+    <div class="summary-card">
+      <div class="sc-label">Units Held</div>
+      <div class="sc-value">{{ total_units|floatformat:3 }}</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Avg Cost</div>
+      <div class="sc-value">{% if per_folio %}₹{% for h in per_folio %}{% if forloop.first %}{{ h.avg_cost|inr }}{% endif %}{% endfor %}{% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Current NAV</div>
+      <div class="sc-value">
+        {% if current_nav %}₹{{ current_nav|floatformat:3 }}{% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+      </div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Invested</div>
+      <div class="sc-value">₹{{ total_invested|inr }}</div>
+    </div>
+    <div class="summary-card emerald {% if total_current %}active{% endif %}">
+      <div class="sc-label">Current Value</div>
+      <div class="sc-value">
+        {% if total_current %}₹{{ total_current|inr }}{% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+      </div>
+    </div>
+    <div class="summary-card {% if total_realized and total_realized > 0 %}emerald{% elif total_realized and total_realized < 0 %}rose{% endif %}">
+      <div class="sc-label">Realized G/L</div>
+      <div class="sc-value">
+        {% if total_realized %}
+          <span style="color: {% if total_realized >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+            {% if total_realized >= 0 %}+{% endif %}₹{{ total_realized|inr }}
+          </span>
+        {% else %}<span style="color: var(--fg-dim);">₹0.00</span>{% endif %}
+      </div>
+    </div>
+    <div class="summary-card {% if total_unrealized and total_unrealized > 0 %}emerald{% elif total_unrealized and total_unrealized < 0 %}rose{% endif %}">
+      <div class="sc-label">Unrealized G/L</div>
+      <div class="sc-value">
+        {% if total_unrealized is not None %}
+          <span style="color: {% if total_unrealized >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+            {% if total_unrealized >= 0 %}+{% endif %}₹{{ total_unrealized|inr }}
+          </span>
+        {% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+      </div>
+    </div>
+    <div class="summary-card cyan">
+      <div class="sc-label">XIRR</div>
+      <div class="sc-value">
+        {% if xirr_pct is not None %}
+          <span style="color: {% if xirr_pct >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">{{ xirr_pct }}%</span>
+        {% else %}<span style="color: var(--fg-dim);">—</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if per_folio|length > 1 %}
+  <div class="card">
+    <table class="table">
+      <thead>
+        <tr><th>Folio</th><th class="num">Units</th><th class="num">Avg Cost</th><th class="num">Invested</th><th class="num">Current Value</th></tr>
+      </thead>
+      <tbody>
+      {% for h in per_folio %}
+        <tr>
+          <td><code>{{ h.folio_number }}</code></td>
+          <td class="num">{{ h.units_held|floatformat:3 }}</td>
+          <td class="num">₹{{ h.avg_cost|inr }}</td>
+          <td class="num">₹{{ h.invested|inr }}</td>
+          <td class="num">{% if h.current_value %}₹{{ h.current_value|inr }}{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<!-- HOLDING-WISE TRANSACTIONS -->
+<div class="section-block">
+  <div class="section-title"><h2>Holding-wise Transactions</h2><span class="hint">{{ transactions|length }} transaction{{ transactions|length|pluralize }}</span></div>
+
+  {% if tag_summary %}
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.4rem; margin-bottom: 0.45rem;">
+    {% for ts in tag_summary %}
+    <div class="card padded" style="padding: 0.5rem 0.65rem;">
+      <div style="font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600;">{{ ts.tag }}</div>
+      <div style="font-size: 0.92rem; font-weight: 700; margin: 0.1rem 0;">{{ ts.count }} txn{{ ts.count|pluralize }}</div>
+      <div class="num" style="font-size: 0.72rem; color: var(--fg-dim);">{{ ts.units|floatformat:3 }} units · ₹{{ ts.amount|inr }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Action</th>
+          <th>Tag</th>
+          <th class="num">NAV</th>
+          <th class="num">Units</th>
+          <th class="num">Amount</th>
+          <th>Reference Number</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in transactions %}
+        <tr>
+          <td>{{ t.date|date:"Y-m-d" }}</td>
+          <td>
+            <span class="tag tag-{% if t.action == 'buy' %}purchase{% elif t.action == 'sell' %}redemption{% else %}other{% endif %}">
+              {{ t.action }}
+            </span>
+          </td>
+          <td><span class="tag tag-{{ t.tag|default:'other' }}">{{ t.tag|default:"—" }}</span></td>
+          <td class="num">{% if t.nav %}₹{{ t.nav|floatformat:3 }}{% else %}—{% endif %}</td>
+          <td class="num">
+            <span style="color: {% if t.action == 'buy' %}var(--emerald){% else %}var(--rose){% endif %};">
+              {% if t.action == 'buy' %}+{% else %}−{% endif %}{{ t.units|floatformat:3 }}
+            </span>
+          </td>
+          <td class="num">₹{{ t.amount|inr }}</td>
+          <td><code style="font-size: 0.72rem;">{{ t.reference|truncatechars:30 }}</code></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align: center; padding: 1rem; color: var(--fg-dim);">No transactions.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- SIP BOOK -->
+<div class="section-block">
+  <div class="section-title"><h2>SIP Book</h2><span class="hint">{{ sip_book|length }} systematic plan{{ sip_book|length|pluralize }} for this scheme</span></div>
+  <div class="card">
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-bottom: 1px solid var(--border);">
+      <div style="padding: 0.55rem 0.85rem; border-right: 1px solid var(--border);">
+        <div class="kv-label" style="font-size: 0.6rem;">Active</div>
+        <div style="font-size: 1.05rem; font-weight: 700; color: {% if active_sips %}var(--emerald){% else %}var(--fg-dim){% endif %};">{{ active_sips|length }}</div>
+      </div>
+      <div style="padding: 0.55rem 0.85rem; border-right: 1px solid var(--border);">
+        <div class="kv-label" style="font-size: 0.6rem;">Paused</div>
+        <div style="font-size: 1.05rem; font-weight: 700; color: {% if paused_sips %}var(--amber){% else %}var(--fg-dim){% endif %};">{{ paused_sips|length }}</div>
+      </div>
+      <div style="padding: 0.55rem 0.85rem;">
+        <div class="kv-label" style="font-size: 0.6rem;">Cancelled / Completed</div>
+        <div style="font-size: 1.05rem; font-weight: 700; color: {% if cancelled_sips %}var(--rose){% else %}var(--fg-dim){% endif %};">{{ cancelled_sips|length }}</div>
+      </div>
+    </div>
+    {% if sip_book %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Folio</th>
+          <th>Frequency</th>
+          <th class="num">Amount</th>
+          <th>Start</th>
+          <th>End</th>
+          <th class="num">Paid / Total</th>
+          <th>Status</th>
+          <th>Remarks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in sip_book %}
+        <tr>
+          <td><span class="tag tag-purchase">{{ p.tr_type }}</span></td>
+          <td><code style="font-size: 0.72rem;">{{ p.folio_number }}</code></td>
+          <td>{{ p.freq }}</td>
+          <td class="num">₹{{ p.amount|inr }}</td>
+          <td>{{ p.start_date|default:"—" }}</td>
+          <td>{{ p.end_date|default:"—" }}</td>
+          <td class="num">{{ p.paid_installments }} / {% if p.total_installments and p.total_installments < 999 %}{{ p.total_installments }}{% elif p.sip_type == "PERPETUAL" %}∞{% else %}{{ p.total_installments }}{% endif %}</td>
+          <td>
+            <span class="tag tag-{% if p.status == 'active' %}purchase{% elif p.status == 'paused' %}redemption{% elif p.status == 'cancelled' %}reversal{% else %}other{% endif %}">{{ p.status }}</span>
+          </td>
+          <td style="font-size: 0.7rem; color: var(--fg-dim);">{{ p.remarks|truncatechars:35 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding: 0.8rem; text-align: center; color: var(--fg-dim); font-size: 0.78rem;">
+      No systematic plans registered for this scheme.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- GAINS / TAX LOTS -->
+<div class="section-block">
+  <div class="section-title"><h2>Gains / Tax Lots</h2><span class="hint">requires FIFO tax-lot tracking</span></div>
+  <div class="card">
+    <div class="kv-grid">
+      <div class="kv">
+        <div class="kv-label">Realized Gain</div>
+        <div class="kv-value">
+          {% if total_realized %}
+            <span style="color: {% if total_realized >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+              ₹{{ total_realized|inr }}
+            </span>
+          {% else %}<span class="empty">₹0.00</span>{% endif %}
+        </div>
+      </div>
+      <div class="kv">
+        <div class="kv-label">Unrealized Gain</div>
+        <div class="kv-value">
+          {% if total_unrealized is not None %}
+            <span style="color: {% if total_unrealized >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+              ₹{{ total_unrealized|inr }}
+            </span>
+          {% else %}<span class="empty">—</span>{% endif %}
+        </div>
+      </div>
+      <div class="kv">
+        <div class="kv-label">STCG (&lt; 1 yr / 3 yr)</div>
+        <div class="kv-value empty">—</div>
+      </div>
+      <div class="kv">
+        <div class="kv-label">LTCG (&gt; 1 yr / 3 yr)</div>
+        <div class="kv-value empty">—</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

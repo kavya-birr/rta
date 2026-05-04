@@ -16,7 +16,42 @@ SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY", "dev-only-change-me-before-production-use-1234567890"
 )
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
-ALLOWED_HOSTS = ["*"]
+
+# In production we trust only the hostname Render assigns us (auto-injected
+# as RENDER_EXTERNAL_HOSTNAME) plus any custom domain set via env. In dev,
+# accept everything for convenience.
+if DEBUG:
+    ALLOWED_HOSTS = ["*"]
+else:
+    ALLOWED_HOSTS = [
+        h for h in [
+            os.environ.get("RENDER_EXTERNAL_HOSTNAME"),
+            os.environ.get("CUSTOM_DOMAIN"),
+            "localhost",
+            "127.0.0.1",
+        ] if h
+    ]
+
+# Production-only security headers — turned on whenever DEBUG is False.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # Render terminates TLS at its edge proxy and forwards http to our
+    # process. Trust the X-Forwarded-Proto header so Django knows the
+    # original request was https (otherwise SECURE_SSL_REDIRECT loops).
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    # Prevent clickjacking, sniffing, etc.
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = "DENY"
+    # Tell browsers to keep using HTTPS for 1 year (HSTS)
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 365
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    # CSRF: trust the Render-issued domain
+    CSRF_TRUSTED_ORIGINS = [
+        f"https://{h}" for h in ALLOWED_HOSTS if h not in ("localhost", "127.0.0.1")
+    ]
 
 # Applications
 INSTALLED_APPS = [
@@ -27,11 +62,19 @@ INSTALLED_APPS = [
     "uploads.apps.UploadsConfig",
     "corrections.apps.CorrectionsConfig",
     "dashboard.apps.DashboardConfig",
+    "clients.apps.ClientsConfig",
 ]
 
 MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    # Whitenoise serves /static/ files efficiently from the gunicorn process —
+    # no need for nginx/CDN config on Render. Must sit immediately after
+    # SecurityMiddleware to handle compressed static delivery.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
 ]
 
@@ -53,12 +96,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "reference_app.wsgi.application"
 
+# Data directory: where stateful files live (sqlite, JSON stores, AMFI cache,
+# uploaded feed files). On Render, set OFR_DATA_DIR=/data so the persistent
+# disk mount sits AWAY from the code directory (mounting on top of code would
+# hide it on first boot). Locally, defaults to BASE_DIR for backwards compat.
+DATA_DIR = Path(os.environ.get("OFR_DATA_DIR", BASE_DIR))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 # SQLite for Django's own internal tables (sessions, auth if enabled later).
 # NOT the library database. The library uses Postgres via SQLAlchemy.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "django_internal.sqlite3",
+        "NAME": DATA_DIR / "django_internal.sqlite3",
     }
 }
 
@@ -69,11 +119,18 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# Whitenoise: gzip + brotli + far-future-cache-with-content-hash. Gives us
+# fast asset delivery without an external CDN. Falls back gracefully on dev.
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Allow large feed file uploads (default 2.5 MB is too small for real files).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
+
 # Where uploaded feed files land on disk. The worker polls this directory.
-UPLOAD_DIR = Path(os.environ.get("OFR_UPLOAD_DIR", BASE_DIR / "uploaded_files"))
+UPLOAD_DIR = Path(os.environ.get("OFR_UPLOAD_DIR", DATA_DIR / "uploaded_files"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Library database URL (also read by openreversefeed.settings directly).

@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% load inr %}
+{% block title %}Yield Optimizer · openreversefeed{% endblock %}
+{% block crumb_leaf %}Yield Optimizer{% endblock %}
+
+{% block content %}
+<style>
+  .yo-head { display: flex; justify-content: space-between; align-items: flex-end;
+             flex-wrap: wrap; gap: 1rem; margin-bottom: 0.85rem; }
+  .yo-head h1 { margin: 0 0 0.2rem 0; font-size: 1.4rem; font-weight: 700;
+                letter-spacing: -0.02em; }
+  .yo-head p  { margin: 0; color: var(--muted-strong); font-size: 0.78rem; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem;
+              margin-bottom: 1rem; }
+  @media (max-width: 800px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { padding: 0.8rem 0.95rem; background: var(--bg-card);
+         border: 1px solid var(--border); border-radius: 7px;
+         border-left: 3px solid var(--blue); }
+  .kpi.amber { border-left-color: var(--amber); }
+  .kpi.emerald { border-left-color: var(--emerald); }
+  .kpi.rose { border-left-color: var(--rose); }
+  .kpi .lab { font-size: 0.62rem; font-weight: 700; color: var(--muted);
+              text-transform: uppercase; letter-spacing: 0.07em; }
+  .kpi .val { font-family: 'JetBrains Mono', monospace; font-size: 1.55rem;
+              font-weight: 700; margin-top: 0.25rem; letter-spacing: -0.02em;
+              font-variant-numeric: tabular-nums; }
+  .kpi .sub { font-size: 0.7rem; color: var(--muted-strong); margin-top: 0.15rem; }
+
+  .h-section { margin: 1rem 0 0.5rem; font-size: 0.7rem; font-weight: 700;
+               text-transform: uppercase; letter-spacing: 0.1em;
+               color: var(--fg-dim); }
+
+  /* Category leaderboard */
+  .cat-grid { display: grid; gap: 0.5rem; }
+  .cat-row { display: grid; grid-template-columns: 1.5fr 0.6fr 1fr 0.7fr 0.7fr;
+             gap: 0.6rem; align-items: center;
+             padding: 0.6rem 0.85rem; background: var(--bg-card);
+             border: 1px solid var(--border); border-radius: 6px;
+             font-size: 0.82rem; }
+  .cat-row .cat-name { font-weight: 600; color: var(--fg); }
+  .cat-row .small { font-size: 0.72rem; color: var(--muted); }
+  .cat-row .leader { color: var(--emerald); font-weight: 600; font-size: 0.78rem; }
+  .cat-row .num { font-family: 'JetBrains Mono', monospace;
+                  text-align: right; font-variant-numeric: tabular-nums;
+                  font-size: 0.83rem; font-weight: 600; }
+  .cat-row .bar-wrap { display: flex; align-items: center; gap: 0.4rem; }
+  .cat-row .bar { flex: 1; height: 5px; background: var(--bg-2);
+                  border-radius: 999px; overflow: hidden; min-width: 60px; }
+  .cat-row .bar > span { display: block; height: 100%; background: var(--blue);
+                          border-radius: 999px; }
+  .cat-head { display: grid; grid-template-columns: 1.5fr 0.6fr 1fr 0.7fr 0.7fr;
+              gap: 0.6rem; padding: 0 0.85rem 0.3rem 0.85rem;
+              font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+              letter-spacing: 0.07em; color: var(--muted); }
+  .cat-head .num { text-align: right; }
+
+  /* Suggestion card */
+  .sug-card { display: grid; grid-template-columns: 1fr; gap: 0.5rem;
+              padding: 0.75rem 0.95rem; background: var(--bg-card);
+              border: 1px solid var(--border); border-radius: 7px;
+              margin-bottom: 0.5rem; border-left: 3px solid var(--amber); }
+  .sug-card.high { border-left-color: var(--rose); }
+  .sug-card.medium { border-left-color: var(--amber); }
+  .sug-card.low { border-left-color: var(--cyan); }
+  .sug-row1 { display: flex; justify-content: space-between; align-items: center;
+              gap: 0.6rem; flex-wrap: wrap; }
+  .sug-client { font-size: 0.72rem; color: var(--muted-strong); }
+  .sug-client a { color: var(--blue); font-weight: 600; }
+  .sug-uplift { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem;
+                font-weight: 700; color: var(--emerald);
+                font-variant-numeric: tabular-nums; }
+  .sug-uplift .lab { font-size: 0.62rem; font-weight: 600; color: var(--muted);
+                     text-transform: uppercase; letter-spacing: 0.06em;
+                     display: block; margin-bottom: 0.1rem; font-family: inherit; }
+  .sug-flow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.6rem;
+              align-items: center; }
+  @media (max-width: 700px) { .sug-flow { grid-template-columns: 1fr; } }
+  .sug-cell { padding: 0.55rem 0.7rem; background: var(--bg-1);
+              border-radius: 5px; min-height: 56px; }
+  .sug-cell.from { border-left: 2px solid var(--rose); }
+  .sug-cell.to   { border-left: 2px solid var(--emerald); }
+  .sug-cell .scheme-name { font-size: 0.83rem; font-weight: 600;
+                           color: var(--fg); line-height: 1.3; }
+  .sug-cell .ret { font-family: 'JetBrains Mono', monospace; font-size: 0.92rem;
+                   font-weight: 700; font-variant-numeric: tabular-nums;
+                   margin-top: 0.2rem; }
+  .sug-cell.from .ret { color: var(--rose); }
+  .sug-cell.to   .ret { color: var(--emerald); }
+  .sug-arrow { color: var(--muted); display: flex; justify-content: center; }
+  .sug-arrow svg { width: 22px; height: 22px; }
+  .sug-meta { display: flex; gap: 1rem; font-size: 0.7rem; color: var(--muted-strong);
+              flex-wrap: wrap; }
+  .sug-meta strong { color: var(--fg-dim); font-family: 'JetBrains Mono', monospace; }
+  .sev-pill { display: inline-block; padding: 0.1rem 0.5rem;
+              border-radius: 999px; font-size: 0.6rem; font-weight: 700;
+              text-transform: uppercase; letter-spacing: 0.05em; }
+  .sev-pill.high   { background: var(--rose-bg); color: var(--rose); }
+  .sev-pill.medium { background: var(--amber-bg); color: var(--amber); }
+  .sev-pill.low    { background: var(--cyan-bg);  color: var(--cyan); }
+
+  .empty-pad { padding: 2rem 1rem; text-align: center; color: var(--muted); }
+  .empty-pad svg { width: 36px; height: 36px; margin-bottom: 0.5rem;
+                    color: var(--emerald); opacity: 0.7; }
+</style>
+
+<div class="yo-head">
+  <div>
+    <h1>Yield Optimizer</h1>
+    <p>Find low-yielding positions across the book and discover same-category alternatives that have outperformed.</p>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="lab">Holdings analysed</div>
+    <div class="val">{{ stats.total_holdings_analysed }}</div>
+    <div class="sub">across {{ stats.categories_count }} categories</div>
+  </div>
+  <div class="kpi amber">
+    <div class="lab">Low-yield positions</div>
+    <div class="val">{{ stats.low_yield_count }}</div>
+    <div class="sub">lagging by ≥ 4 ppts vs category leader</div>
+  </div>
+  <div class="kpi emerald">
+    <div class="lab">Potential 1Y uplift</div>
+    <div class="val">₹{{ stats.potential_uplift_total|inr0 }}</div>
+    <div class="sub">if all suggestions actioned</div>
+  </div>
+  <div class="kpi">
+    <div class="lab">Categories tracked</div>
+    <div class="val">{{ stats.categories_count }}</div>
+    <div class="sub">SEBI / asset-class buckets</div>
+  </div>
+</div>
+
+<!-- ─── Category leaderboard ─── -->
+<h2 class="h-section">Category Leaderboard</h2>
+<div class="cat-head">
+  <div>Category</div>
+  <div class="num">Holdings</div>
+  <div>AUM share</div>
+  <div class="num">Avg Return</div>
+  <div class="num">Leader Return</div>
+</div>
+<div class="cat-grid">
+  {% for c in categories %}
+  <div class="cat-row">
+    <div>
+      <div class="cat-name">{{ c.category }}</div>
+      <div class="small leader">↑ {{ c.leader_scheme|truncatechars:48 }}</div>
+    </div>
+    <div class="num">{{ c.holdings_count }}</div>
+    <div class="bar-wrap">
+      <div class="bar"><span style="width: {% widthratio c.aum stats.potential_uplift_total|add:1 100 %}%; max-width: 100%;"></span></div>
+      <div class="small" style="white-space:nowrap;">₹{{ c.aum|inr0 }}</div>
+    </div>
+    <div class="num" style="color: {% if c.avg_return_pct >= 0 %}var(--emerald){% else %}var(--rose){% endif %};">
+      {% if c.avg_return_pct >= 0 %}+{% endif %}{{ c.avg_return_pct }}%
+    </div>
+    <div class="num" style="color: var(--emerald);">+{{ c.leader_return_pct }}%</div>
+  </div>
+  {% empty %}
+  <div class="empty-pad">No data yet — ingest some transactions to see analysis.</div>
+  {% endfor %}
+</div>
+
+<!-- ─── Switch suggestions ─── -->
+<h2 class="h-section">Switch Suggestions
+  <span style="font-weight:500;font-size:0.66rem;text-transform:none;letter-spacing:0;color:var(--muted);">
+    sorted by potential uplift · same category, higher return
+  </span>
+</h2>
+
+{% if suggestions %}
+  {% for s in suggestions %}
+  <div class="sug-card {{ s.severity }}">
+    <div class="sug-row1">
+      <div class="sug-client">
+        <span class="sev-pill {{ s.severity }}">{{ s.severity }} priority</span>
+        &nbsp;
+        <strong style="color:var(--fg);">{{ s.category }}</strong> ·
+        Client <a href="{% url 'clients:detail' s.client_pan %}">{{ s.client_name }}</a>
+      </div>
+      <div class="sug-uplift">
+        <span class="lab">Potential 1Y uplift</span>
+        +₹{{ s.potential_uplift_1y|inr0 }}
+      </div>
+    </div>
+    <div class="sug-flow">
+      <div class="sug-cell from">
+        <div class="scheme-name">{{ s.held_scheme|truncatechars:60 }}</div>
+        <div class="ret">{{ s.held_return_pct }}% return</div>
+      </div>
+      <div class="sug-arrow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </div>
+      <div class="sug-cell to">
+        <div class="scheme-name">{{ s.leader_scheme|truncatechars:60 }}</div>
+        <div class="ret">+{{ s.leader_return_pct }}% return ({{ s.return_gap_pct }} ppt better)</div>
+      </div>
+    </div>
+    <div class="sug-meta">
+      <span>Invested: <strong>₹{{ s.invested|inr0 }}</strong></span>
+      <span>Current value: <strong>₹{{ s.current_value|inr0 }}</strong></span>
+      {% if s.held_isin %}<span>ISIN: <strong>{{ s.held_isin }}</strong></span>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty-pad">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <h3 style="margin:0;color:var(--fg);font-size:0.95rem;">All clear</h3>
+    <p style="margin:0.3rem 0 0 0;font-size:0.82rem;">Every position is within 4 ppts of its category leader. No switch suggestions right now.</p>
+  </div>
+{% endif %}
+
+<div style="margin-top:1rem; padding: 0.65rem 0.85rem; background: var(--bg-1);
+            border: 1px solid var(--border); border-radius: 5px;
+            font-size: 0.7rem; color: var(--fg-dim);">
+  <strong>How this works:</strong> For every category, we identify the highest-returning scheme already held in the book, then flag positions whose return lags that leader by 4+ percentage points. The 1-year uplift is illustrative: invested amount × return gap. Always validate against benchmark, expense ratio, exit load, and tax impact before recommending a switch.
+</div>
+{% endblock %}

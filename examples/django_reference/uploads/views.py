@@ -228,6 +228,29 @@ def file_detail(request, source_file_id: int):
             .scalars()
             .all()
         )
+        # Count total transactions from this file (so the UI can tell the user
+        # whether they're seeing all of them).
+        total_txns = session.execute(
+            select(func.count())
+            .select_from(Transaction)
+            .where(Transaction.source_file_id == source_file_id)
+        ).scalar_one()
+
+        # Sort direction controlled by ?sort=asc|desc (default: newest first so
+        # the most recent activity is visible at a glance).
+        sort_dir = (request.GET.get("sort") or "desc").lower()
+        order_cols = (
+            (Transaction.transaction_date.asc(), Transaction.id.asc())
+            if sort_dir == "asc"
+            else (Transaction.transaction_date.desc(), Transaction.id.desc())
+        )
+
+        # Pagination: large page size by default so the whole file is visible.
+        page_size = _safe_int(request.GET.get("size"), 1000)
+        page_size = min(page_size, 5000)  # cap to avoid runaway renders
+        page = _safe_int(request.GET.get("page"), 1)
+        offset = (page - 1) * page_size
+
         txn_rows = (
             session.execute(
                 select(
@@ -242,8 +265,9 @@ def file_detail(request, source_file_id: int):
                 .join(Scheme, Scheme.id == Transaction.scheme_id)
                 .join(Folio, Folio.id == Transaction.folio_id)
                 .where(Transaction.source_file_id == source_file_id)
-                .order_by(Transaction.transaction_date, Transaction.id)
-                .limit(200)
+                .order_by(*order_cols)
+                .offset(offset)
+                .limit(page_size)
             )
             .all()
         )
@@ -266,10 +290,22 @@ def file_detail(request, source_file_id: int):
             }
         )
 
+    total_pages = max(1, (total_txns + page_size - 1) // page_size)
     return render(
         request,
         "uploads/detail.html",
-        {"sf": sf, "runs": runs, "txns": txns, "active": "files"},
+        {
+            "sf": sf,
+            "runs": runs,
+            "txns": txns,
+            "active": "files",
+            "total_txns": total_txns,
+            "shown_txns": len(txns),
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "sort_dir": sort_dir,
+        },
     )
 
 

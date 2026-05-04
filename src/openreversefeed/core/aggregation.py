@@ -40,7 +40,10 @@ def aggregate_kfintech_transfers(df: pd.DataFrame) -> pd.DataFrame:
     agg_map: dict[str, str] = {c: "sum" for c in sum_cols}
     agg_map.update({c: "first" for c in first_cols})
 
-    aggregated = sorted_t.groupby(group_keys, as_index=False, sort=False).agg(agg_map)
+    # dropna=False is critical — otherwise rows with NaN in any group key
+    # (e.g. no parent_transaction_number on a solo Lateral Shift Out) are
+    # silently dropped, making transfers/switches disappear from the ledger.
+    aggregated = sorted_t.groupby(group_keys, as_index=False, sort=False, dropna=False).agg(agg_map)
     aggregated["original_trans_number"] = aggregated["transaction_id"]
 
     nt = non_transfers.copy()
@@ -73,7 +76,8 @@ def aggregate_cams_switches(df: pd.DataFrame) -> pd.DataFrame:
     agg_map: dict[str, str] = {c: "sum" for c in sum_cols}
     agg_map.update({c: "first" for c in first_cols})
 
-    aggregated = sorted_s.groupby(group_keys, as_index=False, sort=False).agg(agg_map)
+    # dropna=False — see aggregate_kfintech_transfers above for rationale.
+    aggregated = sorted_s.groupby(group_keys, as_index=False, sort=False, dropna=False).agg(agg_map)
     aggregated["original_trans_number"] = aggregated["transaction_id"]
 
     ns = non_switches.copy()

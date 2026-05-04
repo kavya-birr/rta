@@ -11,12 +11,22 @@
 </div>
 
 <div class="card padded" style="max-width: 720px;">
+  {% if form.errors %}
+  <div class="msg error" style="margin-bottom: 1rem;">
+    <strong>Upload failed:</strong>
+    {% for field, errors in form.errors.items %}
+      {% for error in errors %}{{ field }}: {{ error }} {% endfor %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
 
     <div class="form-field">
       <label class="title">Feed file</label>
       {{ form.file }}
+      {% if form.file.errors %}<div class="form-error" style="color: #c0392b; font-size: 0.85rem;">{{ form.file.errors.0 }}</div>{% endif %}
       <div class="form-hint">Supported formats: .csv, .xls, .xlsx, .dbf</div>
     </div>
 
