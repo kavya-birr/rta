@@ -17,6 +17,13 @@ if config.config_file_name is not None:
 
 env_url = os.environ.get("OFR_DATABASE_URL")
 if env_url:
+    # Render / Heroku style URLs come as `postgres://...`. SQLAlchemy 2.0
+    # rejects that prefix, and we want to use the psycopg3 driver explicitly
+    # (we install psycopg[binary], not psycopg2).
+    if env_url.startswith("postgres://"):
+        env_url = env_url.replace("postgres://", "postgresql+psycopg://", 1)
+    elif env_url.startswith("postgresql://") and "+" not in env_url.split("://", 1)[0]:
+        env_url = env_url.replace("postgresql://", "postgresql+psycopg://", 1)
     config.set_main_option("sqlalchemy.url", env_url)
 
 target_metadata = Base.metadata

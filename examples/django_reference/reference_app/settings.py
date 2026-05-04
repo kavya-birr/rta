@@ -110,8 +110,13 @@ if _database_url:
     # Parse the postgres:// URL into Django's DATABASES dict format.
     # Render's connectionString comes in like:
     #   postgres://user:pass@host:port/dbname
+    # urlparse needs a recognised scheme — accept both postgres:// and
+    # postgresql:// transparently.
     from urllib.parse import urlparse
-    u = urlparse(_database_url.replace("postgres://", "postgresql://", 1))
+    _normalised = _database_url
+    if _normalised.startswith("postgres://"):
+        _normalised = _normalised.replace("postgres://", "postgresql://", 1)
+    u = urlparse(_normalised)
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
@@ -139,9 +144,12 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-# Whitenoise: gzip + brotli + far-future-cache-with-content-hash. Gives us
-# fast asset delivery without an external CDN. Falls back gracefully on dev.
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# Whitenoise: gzip + brotli compression for static files. We use the
+# non-manifest variant — manifest storage hashes every referenced asset
+# and fails the build if any reference is broken, which is too strict
+# for our minimal-static setup (we only have admin & whitenoise's own
+# files).
+STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

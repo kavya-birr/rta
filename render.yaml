@@ -13,14 +13,13 @@ services:
     branch: main               # auto-deploy on push to main
     rootDir: .
     buildCommand: |
-      pip install --upgrade pip
       pip install -r requirements.txt
-      cd examples/django_reference
-      python manage.py collectstatic --noinput
-      python manage.py migrate --noinput
-      # Bring the library schema up to date (Postgres tables for accounts/folios/transactions)
-      cd ../..
+      # Library schema first — accounts/folios/transactions/schemes etc.
       alembic upgrade head
+      # Then Django's own auth/sessions/messages tables in the same Postgres
+      cd examples/django_reference
+      python manage.py migrate --noinput
+      python manage.py collectstatic --noinput
     startCommand: |
       cd examples/django_reference && \
         gunicorn reference_app.wsgi:application \

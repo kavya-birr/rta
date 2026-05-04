@@ -53,6 +53,19 @@ class Settings(BaseSettings):
     otel_enabled: bool = False
 
     @model_validator(mode="after")
+    def _normalise_database_url(self) -> Settings:
+        # Render / Heroku style URLs come as `postgres://...`. SQLAlchemy 2.0
+        # rejects that prefix outright; we also want to use psycopg3 explicitly
+        # (we install `psycopg[binary]`, not psycopg2). Normalise so callers
+        # never have to think about it.
+        url = self.database_url
+        if url.startswith("postgres://"):
+            self.database_url = url.replace("postgres://", "postgresql+psycopg://", 1)
+        elif url.startswith("postgresql://") and "+" not in url.split("://", 1)[0]:
+            self.database_url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return self
+
+    @model_validator(mode="after")
     def _check_publisher_deps(self) -> Settings:
         if self.publisher == "webhook" and not self.webhook_url:
             raise ValueError("OFR_WEBHOOK_URL is required when OFR_PUBLISHER=webhook")
