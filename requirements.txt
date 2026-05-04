@@ -5,7 +5,7 @@
 #   2. Django + production-server bits the Django reference app needs
 
 # ─── Django + production server ───
-Django>=5.1,<7
+Django>=5.2.13,<7
 gunicorn>=21.2,<23
 whitenoise>=6.6,<7
 requests>=2.31,<3
